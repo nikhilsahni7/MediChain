@@ -368,6 +368,9 @@ export const searchMedicinesByName = async (
         quantity: {
           gte: quantity,
         },
+        hospitalId: {
+          not: req.user.id, // Exclude the requesting hospital's own medicines
+        },
       },
       include: {
         hospital: {
@@ -386,12 +389,12 @@ export const searchMedicinesByName = async (
 
     // Calculate distance and filter nearby hospitals
     const nearbyMedicines = medicines
+      .filter(
+        (medicine) =>
+          medicine.hospital.latitude !== null &&
+          medicine.hospital.longitude !== null
+      )
       .map((medicine) => {
-        // Skip if hospital doesn't have location data
-        if (!medicine.hospital.latitude || !medicine.hospital.longitude) {
-          return null;
-        }
-
         // Calculate distance using Haversine formula
         const distance = calculateDistance(
           currentHospital.latitude!,
@@ -409,10 +412,8 @@ export const searchMedicinesByName = async (
           },
         };
       })
-      .filter(
-        (medicine) => medicine !== null && medicine.distance <= maxDistance
-      )
-      .sort((a, b) => a!.distance - b!.distance);
+      .filter((medicine) => medicine.distance <= maxDistance)
+      .sort((a, b) => a.distance - b.distance);
 
     res.status(200).json({
       status: "success",

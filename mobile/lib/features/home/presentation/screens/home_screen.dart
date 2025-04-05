@@ -4,13 +4,12 @@ import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/maps/presentation/screens/hospital_map_screen.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_list_screen.dart';
+import 'package:medileger/features/order_drugs/presentation/screens/order_drugs_screen.dart';
 import 'package:medileger/features/settings/presentation/screens/settings_screen.dart';
 
 // TODO: Import actual feature screens when created
 // import 'package:medileger/features/check_medicines/presentation/screens/check_medicines_screen.dart';
-// import 'package:medileger/features/order_drugs/presentation/screens/order_drugs_screen.dart';
 // import 'package:medileger/features/stats/presentation/screens/stats_screen.dart';
-// import 'package:medileger/features/settings/presentation/screens/settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -50,8 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Lazy loaded screens
   late final List<Widget> _widgetOptions = <Widget>[
     const MedicineListScreen(),
-    const _PlaceholderScreenWidget(
-        icon: Icons.shopping_cart_outlined, title: 'Order Medicines'),
+    const OrderDrugsScreen(),
     const HospitalMapScreen(),
     const _PlaceholderScreenWidget(
         icon: Icons.bar_chart_outlined, title: 'Analytics'),

@@ -6,9 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // Base URL for API calls
-  static const String baseUrl =
-      "https://medichain.nikhilsahni.me/api"; // For Android emulator
-  // static const String baseUrl = 'http://localhost:3000/api'; // For iOS simulator
+  static const String baseUrl = "https://medichain.nikhilsahni.me/api";
 
   // HTTP headers
   Future<Map<String, String>> _getHeaders() async {
@@ -22,14 +20,16 @@ class ApiService {
     };
   }
 
+
+
   // GET request
   Future<dynamic> get(String endpoint) async {
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: headers,
-      );
+      final url = Uri.parse('$baseUrl$endpoint');
+      debugPrint('GET request to: $url');
+
+      final response = await http.get(url, headers: headers);
 
       return _processResponse(response);
     } catch (e) {
@@ -42,8 +42,12 @@ class ApiService {
   Future<dynamic> post(String endpoint, dynamic data) async {
     try {
       final headers = await _getHeaders();
+      final url = Uri.parse('$baseUrl$endpoint');
+      debugPrint('POST request to: $url');
+      debugPrint('POST data: ${json.encode(data)}');
+
       final response = await http.post(
-        Uri.parse('$baseUrl$endpoint'),
+        url,
         headers: headers,
         body: json.encode(data),
       );
@@ -59,8 +63,11 @@ class ApiService {
   Future<dynamic> put(String endpoint, dynamic data) async {
     try {
       final headers = await _getHeaders();
+      final url = Uri.parse('$baseUrl$endpoint');
+      debugPrint('PUT request to: $url');
+
       final response = await http.put(
-        Uri.parse('$baseUrl$endpoint'),
+        url,
         headers: headers,
         body: json.encode(data),
       );
@@ -76,8 +83,11 @@ class ApiService {
   Future<dynamic> delete(String endpoint) async {
     try {
       final headers = await _getHeaders();
+      final url = Uri.parse('$baseUrl$endpoint');
+      debugPrint('DELETE request to: $url');
+
       final response = await http.delete(
-        Uri.parse('$baseUrl$endpoint'),
+        url,
         headers: headers,
       );
 
@@ -90,17 +100,42 @@ class ApiService {
 
   // Process response
   dynamic _processResponse(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) return null;
-      return json.decode(response.body);
-    } else {
-      final errorBody =
-          response.body.isNotEmpty ? json.decode(response.body) : null;
-      final errorMessage = errorBody != null
-          ? errorBody['message'] ?? 'Unknown error'
-          : 'Unknown error';
-      debugPrint('API Error: ${response.statusCode} - $errorMessage');
-      throw Exception('API Error ${response.statusCode}: $errorMessage');
+    debugPrint('Response status code: ${response.statusCode}');
+    debugPrint('Response headers: ${response.headers}');
+
+    try {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return null;
+
+        final responseBody = response.body;
+        debugPrint(
+            'Response body preview: ${responseBody.length > 100 ? '${responseBody.substring(0, 100)}...' : responseBody}');
+
+        return json.decode(responseBody);
+      } else {
+        final responseBody = response.body;
+        debugPrint(
+            'Error response: ${responseBody.length > 200 ? '${responseBody.substring(0, 200)}...' : responseBody}');
+
+        Map<String, dynamic>? errorBody;
+        try {
+          if (responseBody.isNotEmpty) {
+            errorBody = json.decode(responseBody);
+          }
+        } catch (e) {
+          debugPrint('Error parsing error response: $e');
+        }
+
+        final errorMessage = errorBody != null
+            ? errorBody['message'] ?? 'Unknown error'
+            : 'Unknown error';
+
+        debugPrint('API Error: ${response.statusCode} - $errorMessage');
+        throw Exception('API Error ${response.statusCode}: $errorMessage');
+      }
+    } catch (e) {
+      debugPrint('Error processing response: $e');
+      throw Exception('Error processing response: $e');
     }
   }
 }
