@@ -1,7 +1,6 @@
 class ApiConfig {
   // Base API URL
-  static const String baseUrl =
-      'http://192.168.1.100:6000/api'; // Update with your actual IP and port
+  static const String baseUrl = "https://medichain.nikhilsahni.me/api";
 
   // API endpoints
   static const String login = '/auth/login';

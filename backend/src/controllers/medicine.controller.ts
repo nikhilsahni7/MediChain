@@ -383,7 +383,7 @@ export const processMedicineImage = async (
         systemPrompt,
         {
           inlineData: {
-            mimeType: req.file.mimetype,
+            mimeType: "image/jpeg",
             data: base64Image,
           },
         },
