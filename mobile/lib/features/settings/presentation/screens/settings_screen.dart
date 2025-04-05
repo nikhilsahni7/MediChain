@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medileger/config/router/app_router.dart';
+import 'package:medileger/core/providers/shared_preferences_provider.dart';
 import 'package:medileger/core/services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:walletconnect_dart/walletconnect_dart.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -46,14 +49,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _logout() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
+      // Disconnect wallet if connected
+      WalletConnect? connector;
+      try {
+        connector = WalletConnect(
+          bridge: 'https://bridge.walletconnect.org',
+          clientMeta: const PeerMeta(
+            name: 'MediChain',
+            description: 'Connect your MetaMask wallet to MediChain',
+            url: 'https://medichain.app',
+            icons: ['https://walletconnect.org/walletconnect-logo.png'],
+          ),
+        );
+
+        if (connector.connected) {
+          await connector.killSession();
+          debugPrint('WalletConnect session terminated during logout');
+        }
+      } catch (e) {
+        debugPrint('Error disconnecting wallet during logout: $e');
+        // Continue with logout even if wallet disconnect fails
+      }
+
+      // Clear all SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      // Call auth service logout for any additional cleanup
       await _authService.logout();
+
+      // Invalidate providers to refresh app state
+      if (mounted) {
+        ref.invalidate(sharedPreferencesInstanceProvider);
+        // Make sure authStateProvider is invalidated to detect logged out state
+        ref.invalidate(Provider((ref) => _authService));
+      }
+
+      // Navigate to login screen and clear navigation stack
       if (mounted) {
         context.go(AppRoutes.login);
       }
     } catch (e) {
       debugPrint('Error during logout: $e');
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error logging out: $e'),

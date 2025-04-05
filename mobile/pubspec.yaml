@@ -55,6 +55,8 @@ dependencies:
   location: ^7.0.1
   geocoding: ^3.0.0
   razorpay_flutter: ^1.4.0
+  image_picker: ^1.0.7
+  permission_handler: ^11.3.0
 
 dev_dependencies:
   flutter_test:

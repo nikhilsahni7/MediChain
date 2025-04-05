@@ -70,7 +70,20 @@ class AuthService {
   Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+
+      // Clear specific authentication-related keys
+      await prefs.remove('token');
+      await prefs.remove('userId');
+      await prefs.remove('name');
+      await prefs.remove('email');
+      await prefs.remove('walletAddress');
+      await prefs.setBool('isLoggedIn', false);
+
+      // For complete cleanup, you might want to clear everything
+      // but that could affect other app settings
+      // await prefs.clear();
+
+      debugPrint('Logout successful: All auth data cleared');
     } catch (e) {
       debugPrint('Logout error: $e');
       throw Exception('Logout failed: $e');
@@ -111,6 +124,16 @@ class AuthService {
       return null;
     } catch (e) {
       debugPrint('getCurrentUser error: $e');
+      return null;
+    }
+  }
+
+  Future<String?> getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token');
+    } catch (e) {
+      debugPrint('getToken error: $e');
       return null;
     }
   }

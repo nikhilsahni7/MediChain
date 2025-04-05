@@ -34,6 +34,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- Image Picker Permissions -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan medicine images</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photos access to get medicine images from your gallery</string>
+
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -754,6 +754,59 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  // Add this static method for global logout handling that can be used from anywhere
+  static Future<void> performLogout(BuildContext context, WidgetRef ref) async {
+    try {
+      // Disconnect wallet if connected
+      WalletConnect? connector;
+      try {
+        connector = WalletConnect(
+          bridge: 'https://bridge.walletconnect.org',
+          clientMeta: const PeerMeta(
+            name: 'MediChain',
+            description: 'Connect your MetaMask wallet to MediChain',
+            url: 'https://medichain.app',
+            icons: ['https://walletconnect.org/walletconnect-logo.png'],
+          ),
+        );
+
+        if (connector.connected) {
+          await connector.killSession();
+          debugPrint('WalletConnect session terminated during logout');
+        }
+      } catch (e) {
+        debugPrint('Error disconnecting wallet during logout: $e');
+        // Continue with logout even if wallet disconnect fails
+      }
+
+      // Clear all app preferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      // Clear any in-memory state and invalidate providers
+      if (context.mounted) {
+        ref.invalidate(authStateProvider);
+        ref.invalidate(sharedPreferencesInstanceProvider);
+        // Add any other relevant providers to invalidate
+      }
+
+      // Navigate to login screen and clear the navigation stack
+      if (context.mounted) {
+        context.go(AppRoutes.login);
+      }
+    } catch (e) {
+      debugPrint('Error during logout: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during logout: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;

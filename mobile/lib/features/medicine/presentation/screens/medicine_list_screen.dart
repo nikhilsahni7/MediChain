@@ -2,20 +2,75 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:medileger/core/services/auth_service.dart';
-import 'package:medileger/core/services/medicine_service.dart';
-
-final medicineServiceProvider = Provider((ref) => MedicineService());
-
-final medicinesProvider = FutureProvider.autoDispose((ref) async {
-  final medicineService = ref.watch(medicineServiceProvider);
-  return await medicineService.getAllMedicines();
-});
+import 'package:medileger/features/medicine/data/models/medicine.dart';
+import 'package:medileger/features/medicine/presentation/screens/medicine_scan_screen.dart';
 
 final authServiceProvider = Provider((ref) => AuthService());
 
 final currentUserProvider = FutureProvider.autoDispose((ref) async {
   final authService = ref.watch(authServiceProvider);
   return await authService.getCurrentUser();
+});
+
+// Extension to add status properties to Medicine
+extension MedicineExtensions on Medicine {
+  bool get isLowStock => quantity <= 30;
+  bool get isExpiringSoon => expiry.difference(DateTime.now()).inDays <= 30;
+  bool get isExpired => expiry.isBefore(DateTime.now());
+  String get status {
+    if (isExpired || quantity <= 10) return 'critical';
+    if (isExpiringSoon || isLowStock) return 'warning';
+    return 'good';
+  }
+}
+
+// Mock data provider
+final medicinesProvider =
+    FutureProvider.autoDispose<List<Medicine>>((ref) async {
+  await Future.delayed(const Duration(milliseconds: 800));
+
+  return [
+    Medicine(
+      id: '1',
+      name: 'Paracetamol',
+      quantity: 100,
+      expiry: DateTime.now().add(const Duration(days: 180)),
+      priority: false,
+      hospitalId: 'hospital1',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+    Medicine(
+      id: '2',
+      name: 'Amoxicillin',
+      quantity: 50,
+      expiry: DateTime.now().add(const Duration(days: 90)),
+      priority: true,
+      hospitalId: 'hospital1',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+    Medicine(
+      id: '3',
+      name: 'Insulin',
+      quantity: 20,
+      expiry: DateTime.now().add(const Duration(days: 30)),
+      priority: true,
+      hospitalId: 'hospital1',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+    Medicine(
+      id: '4',
+      name: 'Loratadine',
+      quantity: 10,
+      expiry: DateTime.now().add(const Duration(days: 120)),
+      priority: false,
+      hospitalId: 'hospital1',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+  ];
 });
 
 class MedicineListScreen extends ConsumerStatefulWidget {
@@ -27,8 +82,8 @@ class MedicineListScreen extends ConsumerStatefulWidget {
 
 class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
   String _searchQuery = '';
-  String _sortBy = 'name';
-  bool _ascending = true;
+  final String _sortBy = 'name';
+  final bool _ascending = true;
   int _selectedFilter = 0; // 0: All, 1: Low stock, 2: Expiring soon
 
   @override
@@ -83,7 +138,7 @@ class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
               error: (_, __) => const SizedBox.shrink(),
             ),
 
-            // Search and filter bar
+            // Search and scan bar
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -107,33 +162,36 @@ class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.sort),
-                    tooltip: 'Sort by',
-                    onSelected: (value) {
-                      setState(() {
-                        if (_sortBy == value) {
-                          _ascending = !_ascending;
-                        } else {
-                          _sortBy = value;
-                          _ascending = true;
-                        }
-                      });
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'name',
-                        child: Text('Name'),
+                  Material(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context)
+                            .push(
+                          MaterialPageRoute(
+                            builder: (context) => const MedicineScanScreen(),
+                          ),
+                        )
+                            .then((result) {
+                          if (result != null) {
+                            ref.invalidate(medicinesProvider);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Medicines added to inventory!'),
+                                duration: Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        child: const Icon(Icons.document_scanner_outlined),
                       ),
-                      const PopupMenuItem(
-                        value: 'quantity',
-                        child: Text('Quantity'),
-                      ),
-                      const PopupMenuItem(
-                        value: 'expiry',
-                        child: Text('Expiry Date'),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),

@@ -4,6 +4,7 @@ import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/maps/presentation/screens/hospital_map_screen.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_list_screen.dart';
+import 'package:medileger/features/medicine/presentation/screens/medicine_scan_screen.dart';
 import 'package:medileger/features/order_drugs/presentation/screens/order_drugs_screen.dart';
 import 'package:medileger/features/settings/presentation/screens/settings_screen.dart';
 
@@ -78,12 +79,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
               onPressed: () {
-                // TODO: Add new medicine action
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Add new medicine')),
-                );
+                // Open Medicine Scan Screen
+                Navigator.of(context)
+                    .push(
+                  MaterialPageRoute(
+                    builder: (context) => const MedicineScanScreen(),
+                  ),
+                )
+                    .then((result) {
+                  // If medicines were added, refresh the medicine list
+                  if (result != null) {
+                    // Invalidate medicine provider to refresh data
+                    ref.invalidate(medicinesProvider);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Medicines added to inventory!'),
+                        duration: Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                });
               },
-              child: const Icon(Icons.add),
+              tooltip: 'Scan Medicine',
+              child: const Icon(Icons.document_scanner_outlined),
             )
           : null,
     );
