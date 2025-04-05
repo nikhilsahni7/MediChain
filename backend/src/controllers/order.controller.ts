@@ -389,18 +389,18 @@ export const createPaymentOrder = async (
           orderId: orderId,
         },
       });
-    } catch (razorpayError) {
-      console.error("Razorpay API error:", razorpayError);
+    } catch (error: any) {
+      console.error("Razorpay API error:", error);
 
       // Handle Razorpay specific errors
-      if (razorpayError.statusCode === 401) {
+      if (error.statusCode === 401) {
         throw new AppError(
           "Razorpay authentication failed. Please check API keys.",
           500
         );
       } else {
         throw new AppError(
-          `Razorpay error: ${razorpayError.message || "Unknown error"}`,
+          `Razorpay error: ${error.message || "Unknown error"}`,
           500
         );
       }
