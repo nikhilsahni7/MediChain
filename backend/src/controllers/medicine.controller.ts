@@ -367,15 +367,19 @@ export const processMedicineImage = async (
       // System prompt for medicine identification with simplified output
       const systemPrompt = `
       You are a pharmaceutical expert.
-      Given an image of a tablet, capsule, or medicine strip, identify the medicine.
+      Given an image of tablet(s), capsule(s), or medicine strip(s), identify ALL the medicines visible in the image.
 
-      Return ONLY a simple JSON object with this structure:
-      {"brandName": "Medicine Name", "genericName": "Active Ingredient", "quantity": 10}
+      Return ONLY a simple JSON array with each medicine as an object with this structure:
+      [
+        {"brandName": "Medicine Name 1", "genericName": "Active Ingredient 1", "quantity": 10},
+        {"brandName": "Medicine Name 2", "genericName": "Active Ingredient 2", "quantity": 20}
+      ]
 
-      Use a realistic brand name. Quantity must be a number.
+      If there's only one medicine, still return it as an array with one item.
+      Use realistic brand names. Quantity must be a number.
 
-      If you can't identify the medicine, return:
-      {"error": "Cannot identify medicine"}
+      If you can't identify any medicine, return:
+      [{"error": "Cannot identify medicine"}]
       `;
 
       // Generate content from Gemini
@@ -400,16 +404,19 @@ export const processMedicineImage = async (
         .trim();
 
       // Create a default medicine object in case parsing fails
-      let medicineData = {
-        brandName: "Unknown Medicine",
-        genericName: "Unknown",
-        quantity: 10,
-      };
+      let medicinesData = [
+        {
+          brandName: "Unknown Medicine",
+          genericName: "Unknown",
+          quantity: 10,
+        },
+      ];
 
       // Try to parse JSON response, but use fallback if it fails
       try {
         const parsed = JSON.parse(responseText);
-        medicineData = parsed;
+        // Ensure the response is an array
+        medicinesData = Array.isArray(parsed) ? parsed : [parsed];
       } catch (parseError) {
         console.error("JSON parsing error:", parseError);
         console.log("Using default medicine data");
@@ -419,22 +426,26 @@ export const processMedicineImage = async (
       const defaultExpiry = new Date();
       defaultExpiry.setDate(defaultExpiry.getDate() + 30);
 
-      // Create medicine with the data we have
-      const medicine = await prisma.medicine.create({
-        data: {
-          name: `${medicineData.brandName}`,
-          quantity: Number(medicineData.quantity) || 10,
-          expiry: defaultExpiry,
-          priority: false,
-          hospitalId: req.user.id,
-        },
-      });
+      // Create medicines with the data we have
+      const createdMedicines = await Promise.all(
+        medicinesData.map(async (medicineData) => {
+          return prisma.medicine.create({
+            data: {
+              name: medicineData.brandName || "Unknown Medicine",
+              quantity: Number(medicineData.quantity) || 10,
+              expiry: defaultExpiry,
+              priority: false,
+              hospitalId: req.user!.id,
+            },
+          });
+        })
+      );
 
       return res.status(201).json({
         status: "success",
         data: {
-          analysis: medicineData,
-          createdMedicines: [medicine],
+          analysis: medicinesData,
+          createdMedicines: createdMedicines,
         },
       });
     } catch (geminiError) {
@@ -458,35 +469,41 @@ const createMedicineFromFallback = async (req: Request, res: Response) => {
     .replace(/-/g, " "); // Replace dashes with spaces
 
   // Default medicine data based on file metadata
-  const defaultMedicineData = {
-    brandName: potentialName || "Sample Medicine",
-    genericName: "Sample Generic",
-    quantity: 10,
-  };
+  const defaultMedicinesData = [
+    {
+      brandName: potentialName || "Sample Medicine",
+      genericName: "Sample Generic",
+      quantity: 10,
+    },
+  ];
 
   // Default date for expiry (30 days from now)
   const defaultExpiry = new Date();
   defaultExpiry.setDate(defaultExpiry.getDate() + 30);
 
-  // Create medicine with default data
-  const medicine = await prisma.medicine.create({
-    data: {
-      name: `${defaultMedicineData.brandName})`,
-      quantity: defaultMedicineData.quantity,
-      expiry: defaultExpiry,
-      priority: false,
-      hospitalId: req.user?.id || "", // Fallback should only be called when req.user exists
-    },
-  });
+  // Create medicines with default data
+  const createdMedicines = await Promise.all(
+    defaultMedicinesData.map(async (medicineData) => {
+      return prisma.medicine.create({
+        data: {
+          name: medicineData.brandName,
+          quantity: medicineData.quantity,
+          expiry: defaultExpiry,
+          priority: false,
+          hospitalId: req.user!.id, // We know req.user exists because this function is only called when authenticated
+        },
+      });
+    })
+  );
 
   return res.status(201).json({
     status: "success",
     data: {
-      analysis: {
-        ...defaultMedicineData,
+      analysis: defaultMedicinesData.map((data) => ({
+        ...data,
         note: "Created with fallback system. Please update details manually.",
-      },
-      createdMedicines: [medicine],
+      })),
+      createdMedicines: createdMedicines,
     },
   });
 };

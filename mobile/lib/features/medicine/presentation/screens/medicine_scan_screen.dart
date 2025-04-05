@@ -10,7 +10,8 @@ import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/medicine/data/models/medicine.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-final scanResultProvider = StateProvider<Map<String, dynamic>?>((ref) => null);
+final scanResultProvider =
+    StateProvider<List<Map<String, dynamic>>>((ref) => []);
 
 class MedicineScanScreen extends ConsumerStatefulWidget {
   const MedicineScanScreen({super.key});
@@ -29,7 +30,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
   bool _isLoading = false;
 
   late AnimationController _animationController;
-  final AuthService _authService = AuthService();
+  final _authService = AuthService();
   String? _errorMessage;
   List<Medicine>? _detectedMedicines;
 
@@ -121,58 +122,38 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
   }
 
   Future<void> _uploadImageForProcessing() async {
-    if (_imageFile == null) {
-      setState(() {
-        _errorMessage = 'Please select an image first';
-      });
-      return;
-    }
-
     setState(() {
       _isUploading = true;
       _isScanning = true;
-      _scanComplete = false;
       _errorMessage = null;
-      _detectedMedicines = null;
+      _animationController.repeat();
     });
 
-    _animationController.repeat();
-
     try {
-      // Get auth token
+      final uri =
+          Uri.parse('${ApiConfig.baseUrl}/api/v1/medicines/process-image');
       final token = await _authService.getToken();
 
       if (token == null) {
-        setState(() {
-          _errorMessage = 'Authentication failed. Please login again.';
-          _isUploading = false;
-          _isScanning = false;
-        });
-        _animationController.stop();
-        return;
+        throw Exception('Authentication token not found');
       }
 
-      // Create multipart request
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${ApiConfig.baseUrl}/medicines/process-image'),
-      );
+      final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll({
+          'Authorization': 'Bearer $token',
+        })
+        ..files.add(
+          await http.MultipartFile.fromPath(
+            'image',
+            _imageFile!.path,
+          ),
+        );
 
-      // Add authorization header
-      request.headers['Authorization'] = 'Bearer $token';
-
-      // Add file
-      request.files.add(await http.MultipartFile.fromPath(
-        'medicineImage',
-        _imageFile!.path,
-      ));
-
-      // Send request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
 
       if (response.statusCode == 201) {
-        final responseData = json.decode(response.body);
+        final responseData = json.decode(responseBody);
 
         if (responseData['status'] == 'success') {
           setState(() {
@@ -187,7 +168,9 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
 
           // Store the analysis result
           ref.read(scanResultProvider.notifier).state =
-              responseData['data']['analysis'];
+              (responseData['data']['analysis'] as List)
+                  .map((item) => item as Map<String, dynamic>)
+                  .toList();
 
           // Show success animation
           _animationController.stop();
@@ -203,7 +186,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
           throw Exception(
               'Image file is too large. Please select a smaller image.');
         } else {
-          final errorData = json.decode(response.body);
+          final errorData = json.decode(responseBody);
           throw Exception(
               'Failed to process image: ${errorData['message'] ?? 'Unknown error'}');
         }
@@ -503,7 +486,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final analysis = ref.watch(scanResultProvider);
+    final analysisList = ref.watch(scanResultProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -539,7 +522,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
                       ),
                     ),
                     Text(
-                      'Medicine successfully added to your inventory',
+                      'Medicine${analysisList.length > 1 ? 's' : ''} successfully added to your inventory',
                       style: textTheme.bodySmall?.copyWith(
                         color: Colors.green.shade700.withOpacity(0.8),
                       ),
@@ -551,87 +534,108 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
           ),
         ),
 
-        // Medicine details card
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title bar
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: colorScheme.secondaryContainer,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.medication_outlined,
-                      color: colorScheme.onSecondaryContainer,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Detected Medicine',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+        // Title text for multiple medicines
+        if (analysisList.length > 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              '${analysisList.length} Medicines Detected',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
+              textAlign: TextAlign.center,
+            ),
+          ),
 
-              // Medicine details
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInfoRow(
-                      'Brand Name:',
-                      analysis?['brandName'] ?? 'Unknown',
-                      colorScheme,
-                      textTheme,
-                    ),
-                    const Divider(),
-                    _buildInfoRow(
-                      'Generic Name:',
-                      analysis?['genericName'] ?? 'Unknown',
-                      colorScheme,
-                      textTheme,
-                    ),
-                    const Divider(),
-                    _buildInfoRow(
-                      'Quantity:',
-                      '${analysis?['quantity'] ?? 0} units',
-                      colorScheme,
-                      textTheme,
-                    ),
-                    if (analysis?['note'] != null) ...[
-                      const Divider(),
-                      _buildInfoRow(
-                        'Note:',
-                        analysis?['note'],
-                        colorScheme,
-                        textTheme,
-                        isNote: true,
-                      ),
-                    ],
-                  ],
-                ),
+        // Medicine details cards - one for each detected medicine
+        ...List.generate(analysisList.length, (index) {
+          final analysis = analysisList[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
-          ),
-        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Title bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.secondaryContainer,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.medication_outlined,
+                          color: colorScheme.onSecondaryContainer,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          analysisList.length > 1
+                              ? 'Medicine ${index + 1}'
+                              : 'Detected Medicine',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onSecondaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Medicine details
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoRow(
+                          'Brand Name:',
+                          analysis['brandName'] ?? 'Unknown',
+                          colorScheme,
+                          textTheme,
+                        ),
+                        const Divider(),
+                        _buildInfoRow(
+                          'Generic Name:',
+                          analysis['genericName'] ?? 'Unknown',
+                          colorScheme,
+                          textTheme,
+                        ),
+                        const Divider(),
+                        _buildInfoRow(
+                          'Quantity:',
+                          '${analysis['quantity'] ?? 0} units',
+                          colorScheme,
+                          textTheme,
+                        ),
+                        if (analysis['note'] != null) ...[
+                          const Divider(),
+                          _buildInfoRow(
+                            'Note:',
+                            analysis['note'],
+                            colorScheme,
+                            textTheme,
+                            isNote: true,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
 
         const SizedBox(height: 20),
 
@@ -647,7 +651,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
                     _errorMessage = null;
                     _detectedMedicines = null;
                   });
-                  ref.read(scanResultProvider.notifier).state = null;
+                  ref.read(scanResultProvider.notifier).state = [];
                 },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Scan Another'),
