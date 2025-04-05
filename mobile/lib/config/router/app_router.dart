@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medileger/core/providers/shared_preferences_provider.dart';
+import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/auth/presentation/screens/login_screen.dart';
 import 'package:medileger/features/home/presentation/screens/home_screen.dart';
 import 'package:medileger/features/onboarding/presentation/screens/onboarding_screen.dart';
@@ -18,41 +20,55 @@ class AppRoutes {
   static const settings = '/settings';
 }
 
+// Authentication service provider
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+// Authentication state provider (rebuilds when auth state changes)
+final authStateProvider = FutureProvider.autoDispose<bool>((ref) {
+  return ref.watch(authServiceProvider).isLoggedIn();
+});
+
 // Riverpod provider for the router
 final goRouterProvider = Provider<GoRouter>((ref) {
-  // Listen to providers needed for initial route decision
-  final sharedPreferences = ref.watch(sharedPreferencesProvider);
-  // Read the flags needed for initial routing
-  final bool isLoggedIn = sharedPreferences.getBool('isLoggedIn') ?? false;
-  // 'hasSeenOnboarding' is now mainly used internally by the onboarding screen
-  // final bool hasSeenOnboarding = sharedPreferences.getBool('hasSeenOnboarding') ?? false;
+  // Create a key to allow reloading the router state
+  final rootNavigatorKey = GlobalKey<NavigatorState>();
 
-  String getInitialLocation() {
-    // Priority 1: If logged in, go straight home.
-    if (isLoggedIn) {
-      print("Router: User is logged in, navigating to Home.");
-      return AppRoutes.home;
-    }
-    // Priority 2: If not logged in, always start with onboarding.
-    else {
-      print("Router: User is NOT logged in, navigating to Onboarding.");
-      return AppRoutes.onboarding;
-    }
-
-    // --- Previous Logic (for reference) ---
-    // if (!hasSeenOnboarding) {
-    //   return AppRoutes.onboarding;
-    // }
-    // if (!isLoggedIn) {
-    //   return AppRoutes.login;
-    // }
-    // return AppRoutes.home;
-    // --- End Previous Logic ---
-  }
+  // This is used to trigger router rebuilds on auth state changes
+  final authState = ref.watch(authStateProvider);
 
   return GoRouter(
-    initialLocation: getInitialLocation(),
+    navigatorKey: rootNavigatorKey,
+    initialLocation: AppRoutes.login, // Default starting point
     debugLogDiagnostics: true, // Log navigation events
+
+    // Use redirect for dynamic routing based on auth state
+    redirect: (context, state) {
+      // If auth state is loading, don't redirect yet
+      if (authState.isLoading) return null;
+
+      // Check if user is logged in (handles errors as not logged in)
+      final bool isLoggedIn = authState.valueOrNull ?? false;
+
+      // Get current path
+      final currentPath = state.matchedLocation;
+
+      // Onboarding has the highest priority - if on onboarding, stay there
+      if (currentPath == AppRoutes.onboarding) return null;
+
+      // If logged in and trying to access login or onboarding, redirect to home
+      if (isLoggedIn && (currentPath == AppRoutes.login || currentPath == AppRoutes.onboarding)) {
+        return AppRoutes.home;
+      }
+
+      // If not logged in and trying to access protected routes, redirect to login
+      if (!isLoggedIn && currentPath != AppRoutes.login) {
+        return AppRoutes.login;
+      }
+
+      // No need to redirect
+      return null;
+    },
+
     routes: [
       GoRoute(
         path: AppRoutes.onboarding,
@@ -80,18 +96,5 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Add other top-level routes if needed
     ],
-    // Redirect logic (optional, can handle auth state changes)
-    // redirect: (context, state) {
-    //   // Example: If user is not logged in and tries to access home, redirect to login
-    //   final loggedIn = ref.read(authProvider).isLoggedIn; // Replace with your auth logic
-    //   final loggingIn = state.matchedLocation == AppRoutes.login;
-    //   final onboarding = state.matchedLocation == AppRoutes.onboarding;
-
-    //   if (!hasSeenOnboarding && !onboarding) return AppRoutes.onboarding;
-    //   if (hasSeenOnboarding && !loggedIn && !loggingIn) return AppRoutes.login;
-    //   if (loggedIn && (loggingIn || onboarding)) return AppRoutes.home;
-
-    //   return null; // No redirect needed
-    // },
   );
 });

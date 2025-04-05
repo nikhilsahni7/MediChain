@@ -9,12 +9,12 @@ datasource db {
 
 model Hospital {
   id           String   @id @default(uuid())
-  name         String
+  name         String?
   email        String   @unique
   password     String
   walletAddress String   @unique
-  latitude     Float
-  longitude    Float
+  latitude     Float?
+  longitude    Float?
   reputation   Int      @default(0)
   medicines    Medicine[]
   createdAt    DateTime @default(now())
@@ -41,6 +41,10 @@ model Order {
   fromHospitalId String
   toHospitalId   String
   transactionHash String?
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  paymentMethod     String?
+  paymentStatus     String?
   emergency     Boolean  @default(false)
   nftCertificateId String?
   createdAt     DateTime @default(now())

@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medileger/config/router/app_router.dart';
 import 'package:medileger/core/providers/shared_preferences_provider.dart';
+import 'package:medileger/core/services/auth_service.dart';
+import 'package:medileger/features/home/presentation/screens/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:walletconnect_dart/walletconnect_dart.dart';
 
@@ -26,6 +29,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   WalletConnect? _connector;
   String? _wcUri;
   Timer? _connectionTimer;
+  final _authService = AuthService();
+  String? _errorMessage;
+
+  // Add a new timer to check navigation status
+  Timer? _navigationTimer;
 
   @override
   void initState() {
@@ -40,58 +48,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _passwordController.dispose();
     _killSession();
     _connectionTimer?.cancel();
+    _navigationTimer?.cancel();
     super.dispose();
   }
 
   void _initWalletConnect() {
-    _connector = WalletConnect(
-      bridge: 'https://bridge.walletconnect.org',
-      clientMeta: const PeerMeta(
-        name: 'MediChain',
-        description: 'Connect your MetaMask wallet to MediChain',
-        url: 'https://medichain.app',
-        icons: ['https://walletconnect.org/walletconnect-logo.png'],
-      ),
-    );
+    try {
+      _connector = WalletConnect(
+        bridge: 'https://bridge.walletconnect.org',
+        clientMeta: const PeerMeta(
+          name: 'MediChain',
+          description: 'Connect your MetaMask wallet to MediChain',
+          url: 'https://medichain.app',
+          icons: ['https://walletconnect.org/walletconnect-logo.png'],
+        ),
+      );
 
-    debugPrint("WalletConnect initialized");
+      debugPrint("WalletConnect initialized");
 
-    // Subscribe to events
-    _connector!.on('connect', (session) {
-      debugPrint("Connected: $session");
-      if (session is SessionStatus && session.accounts.isNotEmpty) {
-        debugPrint("Accounts: ${session.accounts}");
-        setState(() {
-          _walletAddress = session.accounts[0];
-        });
-        _handleSuccessfulConnection();
-      } else {
-        debugPrint("Invalid session or no accounts: $session");
-      }
-    });
-
-    _connector!.on('session_update', (payload) {
-      debugPrint("Session updated: $payload");
-      if (payload is SessionStatus && payload.accounts.isNotEmpty) {
-        debugPrint("Updated accounts: ${payload.accounts}");
-        setState(() {
-          _walletAddress = payload.accounts[0];
-        });
-      } else {
-        debugPrint("Invalid payload or no accounts: $payload");
-      }
-    });
-
-    _connector!.on('disconnect', (session) {
-      debugPrint("Disconnected: $session");
-      setState(() {
-        _walletAddress = null;
+      // Subscribe to events
+      _connector!.on('connect', (session) {
+        debugPrint("Connected: $session");
+        if (session is SessionStatus && session.accounts.isNotEmpty) {
+          debugPrint("Accounts: ${session.accounts}");
+          setState(() {
+            _walletAddress = session.accounts[0];
+          });
+          _handleSuccessfulConnection();
+        } else {
+          debugPrint("Invalid session or no accounts: $session");
+        }
       });
-    });
 
-    _connector!.on('error', (error) {
-      debugPrint("WalletConnect Error: $error");
-    });
+      _connector!.on('session_update', (payload) {
+        debugPrint("Session updated: $payload");
+        if (payload is SessionStatus && payload.accounts.isNotEmpty) {
+          debugPrint("Updated accounts: ${payload.accounts}");
+          setState(() {
+            _walletAddress = payload.accounts[0];
+          });
+        } else {
+          debugPrint("Invalid payload or no accounts: $payload");
+        }
+      });
+
+      _connector!.on('disconnect', (session) {
+        debugPrint("Disconnected: $session");
+        setState(() {
+          _walletAddress = null;
+        });
+      });
+
+      _connector!.on('error', (error) {
+        debugPrint("WalletConnect Error: $error");
+      });
+    } catch (e) {
+      debugPrint("WalletConnect initialization error: $e");
+      // Silently fail - don't crash the app
+    }
   }
 
   Future<void> _killSession() async {
@@ -109,6 +123,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _login() async {
+    setState(() {
+      _errorMessage = null;
+    });
+
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) {
@@ -118,18 +136,71 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // --- Placeholder Login ---
-      await Future.delayed(const Duration(milliseconds: 1500));
+      debugPrint("Starting login process...");
+      // Call the login method from auth service
+      final hospital = await _authService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
-      final prefs = ref.read(sharedPreferencesProvider);
-      await prefs.setBool('isLoggedIn', true);
+      debugPrint("Login successful for: ${hospital.name}");
 
-      if (mounted) {
-        context.go(AppRoutes.home);
+      // Important: Make sure we're still mounted before proceeding
+      if (!mounted) {
+        debugPrint("Widget not mounted after login!");
+        return;
       }
-      // --- End Placeholder ---
+
+      try {
+        // Save login state in SharedPreferences directly to ensure it's set
+        debugPrint("Saving login state to SharedPreferences...");
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('token', hospital.token);
+        await prefs.setString('userId', hospital.id);
+        debugPrint("SharedPreferences saved successfully");
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Welcome back ${hospital.name ?? 'User'}!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(milliseconds: 800),
+          ),
+        );
+
+        // Force navigation with a short delay to allow SharedPreferences to commit
+        if (mounted) {
+          // Force providers to refresh the auth state
+          debugPrint("Invalidating authStateProvider...");
+          ref.invalidate(authStateProvider);
+
+          // Navigate using GoRouter directly
+          debugPrint("About to navigate to home...");
+          context.go(AppRoutes.home);
+          debugPrint("Navigation command executed");
+
+          // If something goes wrong, schedule emergency navigation
+          _scheduleEmergencyNavigation();
+        }
+      } catch (e) {
+        debugPrint("Error during login SharedPreferences operation: $e");
+        if (!mounted) return;
+
+        // Still try to navigate if possible
+        debugPrint("Attempting fallback navigation...");
+        context.go(AppRoutes.home);
+        debugPrint("Fallback navigation executed");
+
+        // Schedule emergency navigation as backup
+        _scheduleEmergencyNavigation();
+      }
     } catch (e) {
+      debugPrint("Login error: $e");
       if (mounted) {
+        setState(() {
+          _errorMessage = 'Invalid email or password. Please try again.';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Login Failed: ${e.toString()}'),
@@ -406,31 +477,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   // Add this method to simulate a successful MetaMask connection for testing
   void _simulateMetaMaskConnection() {
+    debugPrint("🔵 Simulating MetaMask connection for testing");
+    if (!mounted) {
+      debugPrint("🔵 Cannot simulate: widget not mounted");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     // Use a hardcoded test Ethereum address
     const testAddress = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
 
-    // Simulate a delay
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _walletAddress = testAddress;
-          _isLoading = false;
-        });
-        _handleSuccessfulConnection();
+    // Immediately set the address instead of using Future.delayed
+    setState(() {
+      _walletAddress = testAddress;
+      _isLoading = false;
+    });
+
+    debugPrint("🔵 Wallet address set to: $testAddress");
+
+    // Try standard connection handling first
+    _handleSuccessfulConnection();
+
+    // If that fails, do a direct emergency navigation after 3 seconds
+    Timer(const Duration(seconds: 3), () {
+      if (mounted && ModalRoute.of(context)?.settings.name == AppRoutes.login) {
+        debugPrint(
+            "🔵 Still on login screen after simulation - trying direct navigation");
+        _forceNavigateToHome();
       }
     });
   }
 
   void _handleSuccessfulConnection() {
-    if (_walletAddress != null) {
-      // Save login state and wallet address
-      final prefs = ref.read(sharedPreferencesProvider);
-      prefs.setBool('isLoggedIn', true);
-      prefs.setString('walletAddress', _walletAddress!);
+    debugPrint(
+        "Handle successful connection called with wallet: $_walletAddress");
+    if (_walletAddress == null || !mounted) {
+      debugPrint(
+          "Can't handle connection: wallet address is null or widget not mounted");
+      return;
+    }
 
-      if (mounted) {
+    debugPrint("Starting wallet connection process...");
+    try {
+      debugPrint("Setting wallet preferences...");
+      // Use direct SharedPreferences for critical operations
+      _setWalletPreferences().then((_) {
+        debugPrint("Wallet preferences saved successfully");
+        if (!mounted) {
+          debugPrint("Widget not mounted after setting preferences");
+          return;
+        }
+
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -441,17 +539,96 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         );
 
-        // Navigate to home screen
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            // Dismiss any showing dialogs
-            Navigator.of(context, rootNavigator: true)
-                .popUntil((route) => route.isFirst);
+        // Force providers to refresh the auth state
+        debugPrint("Invalidating authStateProvider in wallet connection...");
+        ref.invalidate(authStateProvider);
 
-            // Navigate to home
-            context.go(AppRoutes.home);
-          }
-        });
+        // Dismiss any showing dialogs first
+        debugPrint("Dismissing dialogs before navigation...");
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
+
+        // Navigate DIRECTLY without microtask to see if that helps
+        debugPrint("Navigating to ${AppRoutes.home} directly...");
+        context.go(AppRoutes.home);
+        debugPrint("Direct navigation command executed");
+
+        // Schedule emergency navigation as a fallback
+        _scheduleEmergencyNavigation();
+      }).catchError((error) {
+        debugPrint("Error setting wallet preferences: $error");
+        _handleConnectionFallback();
+      });
+    } catch (e) {
+      debugPrint("Error in _handleSuccessfulConnection: $e");
+      _handleConnectionFallback();
+    }
+  }
+
+  // Helper method to set wallet preferences
+  Future<void> _setWalletPreferences() async {
+    debugPrint("Starting _setWalletPreferences...");
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', true);
+    await prefs.setString('walletAddress', _walletAddress!);
+    debugPrint(
+        "Preferences set: isLoggedIn=true, walletAddress=$_walletAddress");
+
+    // Debug: Verify the values were actually set
+    final verify1 = prefs.getBool('isLoggedIn');
+    final verify2 = prefs.getString('walletAddress');
+    debugPrint("Verification - isLoggedIn: $verify1, walletAddress: $verify2");
+
+    return;
+  }
+
+  // Fallback method with direct SharedPreferences access
+  Future<void> _handleConnectionFallback() async {
+    debugPrint("Starting connection fallback procedure...");
+    if (_walletAddress == null || !mounted) {
+      debugPrint("Can't use fallback: wallet is null or widget not mounted");
+      return;
+    }
+
+    try {
+      debugPrint("Setting preferences in fallback...");
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('walletAddress', _walletAddress!);
+      debugPrint("Fallback preferences saved");
+
+      if (mounted) {
+        // Force providers to refresh
+        debugPrint("Invalidating providers in fallback...");
+        ref.invalidate(authStateProvider);
+
+        // Dismiss any showing dialogs
+        debugPrint("Dismissing dialogs in fallback...");
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
+
+        // Try direct navigation without microtask
+        debugPrint("Attempting direct navigation in fallback...");
+        context.go(AppRoutes.home);
+        debugPrint("Fallback navigation executed");
+
+        // If normal navigation fails, use emergency direct push approach
+        _scheduleEmergencyNavigation();
+      } else {
+        debugPrint("Widget not mounted during fallback navigation");
+      }
+    } catch (e) {
+      debugPrint("Error in fallback connection handling: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving login state: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        // As a last resort, try emergency navigation
+        _forceNavigateToHome();
       }
     }
   }
@@ -533,6 +710,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  // Add this fallback navigation method for desperate cases
+  void _forceNavigateToHome() {
+    debugPrint("🔴 EMERGENCY: Forcing navigation to home screen directly!");
+
+    // Cancel any existing timer
+    _navigationTimer?.cancel();
+
+    if (!mounted) {
+      debugPrint("🔴 Cannot force navigate: widget not mounted");
+      return;
+    }
+
+    // This is a last-resort approach that bypasses the router
+    // and directly pushes the home screen
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      (route) => false, // Remove all previous routes
+    );
+
+    debugPrint("🔴 Emergency navigation executed");
+  }
+
+  // Add a method to schedule the emergency navigation after a timeout
+  void _scheduleEmergencyNavigation() {
+    // Cancel any existing timer
+    _navigationTimer?.cancel();
+
+    debugPrint("⚠️ Scheduling emergency navigation in 2 seconds...");
+    _navigationTimer = Timer(const Duration(seconds: 2), () {
+      debugPrint(
+          "⚠️ Navigation timer fired - checking if still on login screen");
+      // Only execute if we're still mounted and still on the login screen
+      if (mounted &&
+          context.mounted &&
+          ModalRoute.of(context)?.settings.name == AppRoutes.login) {
+        debugPrint(
+            "⚠️ Still on login screen after timeout - forcing navigation");
+        _forceNavigateToHome();
+      } else {
+        debugPrint("✅ Navigation seems to have succeeded or widget unmounted");
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -599,6 +820,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 40),
+
+                    // Display error message if login fails
+                    if (_errorMessage != null)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: colorScheme.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: colorScheme.error),
+                        ),
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: colorScheme.error),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
 
                     // Email Field
                     TextFormField(

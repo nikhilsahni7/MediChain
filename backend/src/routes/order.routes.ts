@@ -15,4 +15,15 @@ router.put("/:id/status", orderController.updateOrderStatus);
 router.post("/emergency", orderController.createEmergencyOrder);
 router.put("/:id/complete", orderController.completeOrder);
 
+// Add new Razorpay routes
+router.post("/payment", orderController.createPaymentOrder);
+router.post("/payment/verify", orderController.verifyRazorpayPayment);
+
+// Webhook doesn't need authentication
+router.post(
+  "/razorpay-webhook",
+  express.raw({ type: "application/json" }),
+  orderController.razorpayWebhook
+);
+
 export default router;

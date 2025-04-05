@@ -16,6 +16,7 @@ async function main() {
       email: "apollo.delhi@medileger.com",
       password: await bcrypt.hash("apollo123", 10),
       walletAddress: "0x1234567890123456789012345678901234567890",
+
       latitude: 28.5621,
       longitude: 77.2841,
     },

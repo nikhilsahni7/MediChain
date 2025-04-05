@@ -224,16 +224,16 @@ export const getNearbyHospitals = async (
       const distanceToHospital = calculateDistance(
         lat,
         lon,
-        hospital.latitude,
-        hospital.longitude
+        hospital.latitude!,
+        hospital.longitude!
       );
       return distanceToHospital <= maxDistance;
     });
 
     // Sort by distance
     nearbyHospitals.sort((a, b) => {
-      const distanceA = calculateDistance(lat, lon, a.latitude, a.longitude);
-      const distanceB = calculateDistance(lat, lon, b.latitude, b.longitude);
+      const distanceA = calculateDistance(lat, lon, a.latitude! , a.longitude!);
+      const distanceB = calculateDistance(lat, lon, b.latitude!, b.longitude!);
       return distanceA - distanceB;
     });
 
@@ -242,8 +242,8 @@ export const getNearbyHospitals = async (
       const distance = calculateDistance(
         lat,
         lon,
-        hospital.latitude,
-        hospital.longitude
+        hospital.latitude!,
+        hospital.longitude!
       );
       return {
         ...hospital,

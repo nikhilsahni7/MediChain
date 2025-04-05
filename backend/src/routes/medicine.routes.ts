@@ -17,4 +17,7 @@ router.delete("/:id", medicineController.deleteMedicine);
 router.get("/low-stock/:threshold", medicineController.getLowStockMedicines);
 router.get("/expiring-soon/:days", medicineController.getExpiringSoonMedicines);
 
+// Add new search route
+router.post("/search", medicineController.searchMedicinesByName);
+
 export default router;

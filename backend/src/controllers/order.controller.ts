@@ -1,8 +1,16 @@
 import { PrismaClient } from "@prisma/client";
+import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
+import Razorpay from "razorpay";
 import { AppError } from "../middleware/error.middleware";
 
 const prisma = new PrismaClient();
+
+// Initialize Razorpay
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+});
 
 // Create order
 export const createOrder = async (
@@ -319,6 +327,170 @@ export const completeOrder = async (
       status: "success",
       data: order,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Create payment order with Razorpay
+export const createPaymentOrder = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const { orderId, amount, currency = "INR" } = req.body;
+
+    // Validate fields
+    if (!orderId || !amount) {
+      throw new AppError("Please provide orderId and amount", 400);
+    }
+
+    // Check if order exists
+    const existingOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!existingOrder) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Create Razorpay order
+    const razorpayOrder = await razorpay.orders.create({
+      amount: amount * 100, // amount in smallest currency unit (paise for INR)
+      currency,
+      receipt: orderId,
+      notes: {
+        orderId: orderId,
+        hospitalId: req.user.id,
+      },
+    });
+
+    // Update order with razorpayOrderId
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        razorpayOrderId: razorpayOrder.id,
+        paymentMethod: "razorpay",
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        razorpayOrderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        orderId: orderId,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Verify Razorpay payment
+export const verifyRazorpayPayment = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { orderId, razorpayPaymentId, razorpaySignature } = req.body;
+
+    // Validate fields
+    if (!orderId || !razorpayPaymentId || !razorpaySignature) {
+      throw new AppError("Please provide all required fields", 400);
+    }
+
+    // Get order details
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Verify signature
+    const generatedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+      .update(`${order.razorpayOrderId}|${razorpayPaymentId}`)
+      .digest("hex");
+
+    if (generatedSignature !== razorpaySignature) {
+      throw new AppError("Invalid payment signature", 400);
+    }
+
+    // Update order with payment details
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "completed",
+        razorpayPaymentId,
+        paymentStatus: "paid",
+      },
+    });
+
+    // Increase reputation of the hospital that fulfilled the order
+    await prisma.hospital.update({
+      where: { id: order.toHospitalId },
+      data: {
+        reputation: {
+          increment: 1,
+        },
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: updatedOrder,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Razorpay webhook handler
+export const razorpayWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const shasum = crypto.createHmac("sha256", webhookSecret || "");
+    shasum.update(JSON.stringify(req.body));
+    const digest = shasum.digest("hex");
+
+    // Verify webhook signature
+    if (digest !== req.headers["x-razorpay-signature"]) {
+      throw new AppError("Invalid webhook signature", 400);
+    }
+
+    const event = req.body;
+
+    // Handle payment success event
+    if (event.event === "payment.captured") {
+      const payment = event.payload.payment.entity;
+      const orderId = payment.notes.orderId;
+
+      // Update order status
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: "completed",
+          razorpayPaymentId: payment.id,
+          paymentStatus: "paid",
+        },
+      });
+    }
+
+    res.status(200).json({ received: true });
   } catch (error) {
     next(error);
   }

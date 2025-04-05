@@ -325,3 +325,122 @@ export const getExpiringSoonMedicines = async (
     next(error);
   }
 };
+
+// Search for medicines by name with nearby hospitals
+export const searchMedicinesByName = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const { name, quantity, maxDistance = 50 } = req.body; // maxDistance in kilometers
+
+    // Validate fields
+    if (!name || !quantity) {
+      throw new AppError("Please provide medicine name and quantity", 400);
+    }
+
+    // Get current hospital location
+    const currentHospital = await prisma.hospital.findUnique({
+      where: { id: req.user.id },
+      select: { latitude: true, longitude: true },
+    });
+
+    if (
+      !currentHospital ||
+      !currentHospital.latitude ||
+      !currentHospital.longitude
+    ) {
+      throw new AppError("Hospital location not available", 400);
+    }
+
+    // Get all medicines with matching name and sufficient quantity
+    const medicines = await prisma.medicine.findMany({
+      where: {
+        name: {
+          contains: name,
+          mode: "insensitive", // Case-insensitive search
+        },
+        quantity: {
+          gte: quantity,
+        },
+      },
+      include: {
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            walletAddress: true,
+            reputation: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
+    });
+
+    // Calculate distance and filter nearby hospitals
+    const nearbyMedicines = medicines
+      .map((medicine) => {
+        // Skip if hospital doesn't have location data
+        if (!medicine.hospital.latitude || !medicine.hospital.longitude) {
+          return null;
+        }
+
+        // Calculate distance using Haversine formula
+        const distance = calculateDistance(
+          currentHospital.latitude!,
+          currentHospital.longitude!,
+          medicine.hospital.latitude!,
+          medicine.hospital.longitude!
+        );
+
+        return {
+          ...medicine,
+          distance: Math.round(distance * 10) / 10, // Round to 1 decimal place
+          paymentOptions: {
+            crypto: !!medicine.hospital.walletAddress,
+            razorpay: true,
+          },
+        };
+      })
+      .filter(
+        (medicine) => medicine !== null && medicine.distance <= maxDistance
+      )
+      .sort((a, b) => a!.distance - b!.distance);
+
+    res.status(200).json({
+      status: "success",
+      results: nearbyMedicines.length,
+      data: nearbyMedicines,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Helper function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c; // Distance in km
+  return distance;
+};
