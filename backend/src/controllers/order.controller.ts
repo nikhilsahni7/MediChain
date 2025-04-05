@@ -1,0 +1,325 @@
+import { PrismaClient } from "@prisma/client";
+import { NextFunction, Request, Response } from "express";
+import { AppError } from "../middleware/error.middleware";
+
+const prisma = new PrismaClient();
+
+// Create order
+export const createOrder = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const {
+      medicineName,
+      quantity,
+      toHospitalId,
+      emergency = false,
+    } = req.body;
+
+    // Validate fields
+    if (!medicineName || !quantity || !toHospitalId) {
+      throw new AppError("Please provide all required fields", 400);
+    }
+
+    // Check if destination hospital exists
+    const toHospital = await prisma.hospital.findUnique({
+      where: { id: toHospitalId },
+    });
+
+    if (!toHospital) {
+      throw new AppError("Destination hospital not found", 404);
+    }
+
+    // Create order
+    const order = await prisma.order.create({
+      data: {
+        medicineName,
+        quantity,
+        fromHospitalId: req.user.id,
+        toHospitalId,
+        emergency,
+        status: "pending",
+      },
+    });
+
+    // If emergency, emit an event (mock implementation for now)
+    if (emergency) {
+      console.log(
+        `EMERGENCY ORDER: Hospital ${req.user.id} needs ${quantity} of ${medicineName} urgently!`
+      );
+      // In a real implementation, we would emit an event to the blockchain and send FCM notifications
+    }
+
+    res.status(201).json({
+      status: "success",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get all orders
+export const getAllOrders = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const orders = await prisma.order.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      results: orders.length,
+      data: orders,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get my orders (as sender or receiver)
+export const getMyOrders = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        OR: [{ fromHospitalId: req.user.id }, { toHospitalId: req.user.id }],
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      results: orders.length,
+      data: orders,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get order by ID
+export const getOrderById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+    });
+
+    if (!order) {
+      throw new AppError("Order not found", 404);
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update order status
+export const updateOrderStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!status || !["pending", "completed", "cancelled"].includes(status)) {
+      throw new AppError("Invalid status", 400);
+    }
+
+    // Check if order exists
+    const existingOrder = await prisma.order.findUnique({
+      where: { id },
+    });
+
+    if (!existingOrder) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Check if user is authorized to update this order
+    if (
+      existingOrder.fromHospitalId !== req.user.id &&
+      existingOrder.toHospitalId !== req.user.id
+    ) {
+      throw new AppError("Not authorized to update this order", 403);
+    }
+
+    // Update order
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status },
+    });
+
+    // If status is completed, update reputation
+    if (status === "completed") {
+      // Increase reputation of the hospital that fulfilled the order
+      await prisma.hospital.update({
+        where: { id: existingOrder.toHospitalId },
+        data: {
+          reputation: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Create emergency order
+export const createEmergencyOrder = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const { medicineName, quantity, toHospitalId } = req.body;
+
+    // Validate fields
+    if (!medicineName || !quantity || !toHospitalId) {
+      throw new AppError("Please provide all required fields", 400);
+    }
+
+    // Check if destination hospital exists
+    const toHospital = await prisma.hospital.findUnique({
+      where: { id: toHospitalId },
+    });
+
+    if (!toHospital) {
+      throw new AppError("Destination hospital not found", 404);
+    }
+
+    // Create emergency order
+    const order = await prisma.order.create({
+      data: {
+        medicineName,
+        quantity,
+        fromHospitalId: req.user.id,
+        toHospitalId,
+        emergency: true,
+        status: "pending",
+      },
+    });
+
+    // Emit an emergency event (mock implementation for now)
+    console.log(
+      `SOS BROADCAST: Hospital ${req.user.id} needs ${quantity} of ${medicineName} urgently!`
+    );
+    // In a real implementation, we would emit an event to the blockchain and send FCM notifications
+
+    res.status(201).json({
+      status: "success",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Complete order with blockchain transaction hash and NFT certificate
+export const completeOrder = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError("Not authenticated", 401);
+    }
+
+    const { id } = req.params;
+    const { transactionHash, nftCertificateId } = req.body;
+
+    // Validate fields
+    if (!transactionHash) {
+      throw new AppError("Please provide transaction hash", 400);
+    }
+
+    // Check if order exists
+    const existingOrder = await prisma.order.findUnique({
+      where: { id },
+    });
+
+    if (!existingOrder) {
+      throw new AppError("Order not found", 404);
+    }
+
+    // Check if user is the receiver of the order
+    if (existingOrder.toHospitalId !== req.user.id) {
+      throw new AppError("Not authorized to complete this order", 403);
+    }
+
+    // Complete order with blockchain transaction hash and optional NFT certificate
+    const order = await prisma.order.update({
+      where: { id },
+      data: {
+        status: "completed",
+        transactionHash,
+        nftCertificateId: nftCertificateId || undefined,
+      },
+    });
+
+    // Increase reputation of the hospital that fulfilled the order
+    await prisma.hospital.update({
+      where: { id: existingOrder.toHospitalId },
+      data: {
+        reputation: {
+          increment: 1,
+        },
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

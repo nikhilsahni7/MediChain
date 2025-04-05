@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Hospital {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  password     String
+  walletAddress String   @unique
+  latitude     Float
+  longitude    Float
+  reputation   Int      @default(0)
+  medicines    Medicine[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Medicine {
+  id          String   @id @default(uuid())
+  name        String
+  quantity    Int
+  expiry      DateTime
+  priority    Boolean  @default(false)
+  hospital    Hospital @relation(fields: [hospitalId], references: [id])
+  hospitalId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  medicineName  String
+  quantity      Int
+  status        String   @default("pending") // pending, completed, cancelled
+  fromHospitalId String
+  toHospitalId   String
+  transactionHash String?
+  emergency     Boolean  @default(false)
+  nftCertificateId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
