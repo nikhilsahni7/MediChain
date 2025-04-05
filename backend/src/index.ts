@@ -37,7 +37,7 @@ app.get("/health", (req, res) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT as any, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
 
