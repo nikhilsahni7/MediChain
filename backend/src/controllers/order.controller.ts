@@ -360,34 +360,51 @@ export const createPaymentOrder = async (
     }
 
     // Create Razorpay order
-    const razorpayOrder = await razorpay.orders.create({
-      amount: amount * 100, // amount in smallest currency unit (paise for INR)
-      currency,
-      receipt: orderId,
-      notes: {
-        orderId: orderId,
-        hospitalId: req.user.id,
-      },
-    });
+    try {
+      const razorpayOrder = await razorpay.orders.create({
+        amount: amount * 100, // amount in smallest currency unit (paise for INR)
+        currency,
+        receipt: orderId,
+        notes: {
+          orderId: orderId,
+          hospitalId: req.user.id,
+        },
+      });
 
-    // Update order with razorpayOrderId
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        razorpayOrderId: razorpayOrder.id,
-        paymentMethod: "razorpay",
-      },
-    });
+      // Update order with razorpayOrderId
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          razorpayOrderId: razorpayOrder.id,
+          paymentMethod: "razorpay",
+        },
+      });
 
-    res.status(200).json({
-      status: "success",
-      data: {
-        razorpayOrderId: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-        orderId: orderId,
-      },
-    });
+      res.status(200).json({
+        status: "success",
+        data: {
+          razorpayOrderId: razorpayOrder.id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+          orderId: orderId,
+        },
+      });
+    } catch (razorpayError) {
+      console.error("Razorpay API error:", razorpayError);
+
+      // Handle Razorpay specific errors
+      if (razorpayError.statusCode === 401) {
+        throw new AppError(
+          "Razorpay authentication failed. Please check API keys.",
+          500
+        );
+      } else {
+        throw new AppError(
+          `Razorpay error: ${razorpayError.message || "Unknown error"}`,
+          500
+        );
+      }
+    }
   } catch (error) {
     next(error);
   }

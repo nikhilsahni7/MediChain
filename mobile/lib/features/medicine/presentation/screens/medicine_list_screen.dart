@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/medicine/data/models/medicine.dart';
+import 'package:medileger/features/medicine/data/providers/medicine_providers.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_scan_screen.dart';
 
 final authServiceProvider = Provider((ref) => AuthService());
@@ -12,66 +13,23 @@ final currentUserProvider = FutureProvider.autoDispose((ref) async {
   return await authService.getCurrentUser();
 });
 
-// Extension to add status properties to Medicine
-extension MedicineExtensions on Medicine {
-  bool get isLowStock => quantity <= 30;
-  bool get isExpiringSoon => expiry.difference(DateTime.now()).inDays <= 30;
+extension MedicineExtension on Medicine {
+  bool get isExpiringSoon {
+    final now = DateTime.now();
+    final diff = expiry.difference(now).inDays;
+    return diff <= 30 && diff > 0;
+  }
+
   bool get isExpired => expiry.isBefore(DateTime.now());
+
+  bool get isLowStock => quantity <= 20;
+
   String get status {
     if (isExpired || quantity <= 10) return 'critical';
     if (isExpiringSoon || isLowStock) return 'warning';
     return 'good';
   }
 }
-
-// Mock data provider
-final medicinesProvider =
-    FutureProvider.autoDispose<List<Medicine>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 800));
-
-  return [
-    Medicine(
-      id: '1',
-      name: 'Paracetamol',
-      quantity: 100,
-      expiry: DateTime.now().add(const Duration(days: 180)),
-      priority: false,
-      hospitalId: 'hospital1',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    Medicine(
-      id: '2',
-      name: 'Amoxicillin',
-      quantity: 50,
-      expiry: DateTime.now().add(const Duration(days: 90)),
-      priority: true,
-      hospitalId: 'hospital1',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    Medicine(
-      id: '3',
-      name: 'Insulin',
-      quantity: 20,
-      expiry: DateTime.now().add(const Duration(days: 30)),
-      priority: true,
-      hospitalId: 'hospital1',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    Medicine(
-      id: '4',
-      name: 'Loratadine',
-      quantity: 10,
-      expiry: DateTime.now().add(const Duration(days: 120)),
-      priority: false,
-      hospitalId: 'hospital1',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-  ];
-});
 
 class MedicineListScreen extends ConsumerStatefulWidget {
   const MedicineListScreen({super.key});
@@ -85,6 +43,7 @@ class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
   final String _sortBy = 'name';
   final bool _ascending = true;
   int _selectedFilter = 0; // 0: All, 1: Low stock, 2: Expiring soon
+  final bool _showFab = true;
 
   @override
   Widget build(BuildContext context) {
@@ -340,15 +299,22 @@ class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
         Positioned(
           bottom: 16,
           right: 16,
-          child: FloatingActionButton(
-            onPressed: () {
-              // TODO: Navigate to add medicine screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Add medicine functionality coming soon')),
-              );
-            },
-            child: const Icon(Icons.add),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: _showFab ? 1.0 : 0.0,
+            child: FloatingActionButton(
+              heroTag: 'medicine_list_fab',
+              onPressed: () {
+                // Navigate to add medicine screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const MedicineScanScreen(),
+                  ),
+                );
+              },
+              tooltip: 'Add Medicine',
+              child: const Icon(Icons.add),
+            ),
           ),
         ),
       ],

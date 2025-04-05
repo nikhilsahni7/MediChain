@@ -173,9 +173,16 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
           quantity: quantity,
           toHospitalId: _selectedResult!.hospitalId,
         );
+        debugPrint('Order created successfully: ${order?.id}');
       } catch (e) {
         debugPrint('Error creating order: $e');
-        // Continue with mock order
+        // Show an error toast but continue with mock order for demo
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not create order, using demo mode'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
 
       // Calculate simple price (in a real app, this would come from the backend)
@@ -189,14 +196,31 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
         try {
           // Create a Razorpay payment order
           RazorpayOrderResponse? paymentOrder;
+          bool useMockPayment = false;
+
           try {
-            paymentOrder = await _orderService.createPaymentOrder(
-              orderId: orderId,
-              amount: price,
-            );
+            if (order != null) {
+              // Only try real payment if order was created
+              paymentOrder = await _orderService.createPaymentOrder(
+                orderId: orderId,
+                amount: price,
+              );
+              debugPrint(
+                  'Payment order created: ${paymentOrder?.razorpayOrderId}');
+            } else {
+              useMockPayment = true;
+            }
           } catch (e) {
             debugPrint('Error creating payment order: $e');
-            // Continue with mock payment
+            useMockPayment = true;
+
+            // Show appropriate error message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Payment gateway unavailable, using demo mode'),
+                backgroundColor: Colors.orange,
+              ),
+            );
           }
 
           if (paymentOrder != null) {
@@ -222,7 +246,7 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
             };
 
             _razorpay.open(options);
-          } else {
+          } else if (useMockPayment) {
             // Mock payment success for demo if backend is unavailable
             _mockPaymentSuccess(orderId);
           }
@@ -509,6 +533,28 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                       if (_selectedResult != null) ...[
                         const SizedBox(height: 24),
                         _buildSelectedHospitalDetails(textTheme, colorScheme),
+
+                        // Place Order Button (inside the scroll view)
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _createOrder,
+                            icon: const Icon(Icons.shopping_cart),
+                            label: const Text('Place Order Now'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
                       ],
                     ],
                   ),
@@ -516,12 +562,14 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
               ),
             ),
 
-      // Order Button
-      floatingActionButton: _selectedResult != null
+      // We'll keep the floating action button for smaller screens
+      floatingActionButton: _selectedResult != null && screenSize.width < 500
           ? FloatingActionButton.extended(
               onPressed: _createOrder,
               icon: const Icon(Icons.shopping_cart),
               label: const Text('Place Order'),
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
             )
           : null,
     );
@@ -597,7 +645,7 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                   _filteredSuggestions.isNotEmpty)
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
@@ -885,59 +933,63 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.payments_outlined,
-                            size: 14,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Razorpay',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (result.paymentOptions['crypto'] == true)
+                Flexible(
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withOpacity(0.1),
+                          color: Colors.blue.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.currency_bitcoin,
+                              Icons.payments_outlined,
                               size: 14,
-                              color: Colors.amber.shade800,
+                              color: colorScheme.primary,
                             ),
                             const SizedBox(width: 4),
                             const Text(
-                              'Crypto',
+                              'Razorpay',
                               style: TextStyle(fontSize: 12),
                             ),
                           ],
                         ),
                       ),
-                  ],
+                      if (result.paymentOptions['crypto'] == true)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.currency_bitcoin,
+                                size: 14,
+                                color: Colors.amber.shade800,
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Crypto',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 if (isSelected)
                   const Icon(
@@ -1225,18 +1277,23 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                   fontSize: 11,
                 ),
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.copy, size: 16),
-              constraints: const BoxConstraints(),
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                // Copy to clipboard functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Address copied to clipboard')),
-                );
-              },
+            SizedBox(
+              width: 40,
+              child: IconButton(
+                icon: const Icon(Icons.copy, size: 16),
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                onPressed: () {
+                  // Copy to clipboard functionality
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Address copied to clipboard')),
+                  );
+                },
+              ),
             ),
           ],
         ),

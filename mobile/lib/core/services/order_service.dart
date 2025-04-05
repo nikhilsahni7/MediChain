@@ -279,8 +279,18 @@ class OrderService {
 
       return RazorpayOrderResponse.fromJson(response['data']);
     } catch (e) {
-      debugPrint('Error creating payment order: $e');
-      return null;
+      // Check if it's an API error and handle accordingly
+      if (e.toString().contains('500')) {
+        debugPrint('Razorpay server error: $e');
+        throw Exception(
+            'Razorpay service temporarily unavailable. Please try again later.');
+      } else if (e.toString().contains('401')) {
+        debugPrint('Authentication error with payment: $e');
+        throw Exception('Authentication failed. Please log in again.');
+      } else {
+        debugPrint('Error creating payment order: $e');
+        throw Exception('Failed to create payment: ${e.toString()}');
+      }
     }
   }
 

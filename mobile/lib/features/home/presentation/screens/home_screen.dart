@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/maps/presentation/screens/hospital_map_screen.dart';
+import 'package:medileger/features/medicine/data/providers/medicine_providers.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_list_screen.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_scan_screen.dart';
 import 'package:medileger/features/order_drugs/presentation/screens/order_drugs_screen.dart';
@@ -78,6 +79,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: _buildBottomNav(context, isTablet),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
+              heroTag: 'home_fab',
               onPressed: () {
                 // Open Medicine Scan Screen
                 Navigator.of(context)

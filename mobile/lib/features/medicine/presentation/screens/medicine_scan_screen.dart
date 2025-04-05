@@ -8,10 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:medileger/core/config/api_config.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/medicine/data/models/medicine.dart';
+import 'package:medileger/features/medicine/data/providers/medicine_providers.dart';
 import 'package:permission_handler/permission_handler.dart';
-
-final scanResultProvider =
-    StateProvider<List<Map<String, dynamic>>>((ref) => []);
 
 class MedicineScanScreen extends ConsumerStatefulWidget {
   const MedicineScanScreen({super.key});
@@ -130,8 +128,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
     });
 
     try {
-      final uri =
-          Uri.parse('${ApiConfig.baseUrl}/api/v1/medicines/process-image');
+      final uri = Uri.parse('${ApiConfig.baseUrl}/medicines/process-image');
       final token = await _authService.getToken();
 
       if (token == null) {
@@ -144,7 +141,7 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
         })
         ..files.add(
           await http.MultipartFile.fromPath(
-            'image',
+            'medicineImage',
             _imageFile!.path,
           ),
         );
@@ -167,10 +164,22 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
           });
 
           // Store the analysis result
-          ref.read(scanResultProvider.notifier).state =
-              (responseData['data']['analysis'] as List)
-                  .map((item) => item as Map<String, dynamic>)
-                  .toList();
+          final analysisData = responseData['data']['analysis'];
+          if (analysisData is List) {
+            ref.read(scanResultProvider.notifier).state = analysisData
+                .map((item) => item is Map<String, dynamic>
+                    ? item
+                    : Map<String, dynamic>.from(item as Map))
+                .toList();
+          } else if (analysisData is Map) {
+            // Handle single item (old format or fallback)
+            ref.read(scanResultProvider.notifier).state = [
+              Map<String, dynamic>.from(analysisData)
+            ];
+          } else {
+            // Default empty state
+            ref.read(scanResultProvider.notifier).state = [];
+          }
 
           // Show success animation
           _animationController.stop();
@@ -193,11 +202,28 @@ class _MedicineScanScreenState extends ConsumerState<MedicineScanScreen>
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error processing image: $e';
         _isUploading = false;
         _isScanning = false;
       });
       _animationController.stop();
+
+      // Format error message more clearly
+      String errorMsg;
+      if (e.toString().contains('type \'List<dynamic>\'')) {
+        errorMsg =
+            'Error processing server response: Data format issue. Please try again.';
+      } else if (e.toString().contains('401')) {
+        errorMsg = 'Authentication failed. Please log out and log in again.';
+      } else if (e.toString().contains('Connection')) {
+        errorMsg = 'Connection error. Please check your internet connection.';
+      } else {
+        errorMsg =
+            'Error processing image: ${e.toString().split(':').last.trim()}';
+      }
+
+      setState(() {
+        _errorMessage = errorMsg;
+      });
     }
   }
 
