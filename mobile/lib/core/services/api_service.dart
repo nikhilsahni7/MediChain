@@ -20,8 +20,6 @@ class ApiService {
     };
   }
 
-
-
   // GET request
   Future<dynamic> get(String endpoint) async {
     try {
