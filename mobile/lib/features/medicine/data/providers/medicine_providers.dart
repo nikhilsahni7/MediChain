@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:medileger/core/config/api_config.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/medicine/data/models/medicine.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 // Provider to store medicine scan results
 final scanResultProvider =

@@ -132,7 +132,7 @@ class OnboardingScreen extends ConsumerWidget {
                   size: 35, color: colorScheme.primary),
               const SizedBox(width: 10),
               Text(
-                'MediChain',
+                'medileger',
                 style: textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.primary,
@@ -143,7 +143,7 @@ class OnboardingScreen extends ConsumerWidget {
         ),
         pages: [
           PageViewModel(
-            title: "Welcome to MediChain",
+            title: "Welcome to medileger",
             body:
                 "Connecting hospitals for efficient medicine sharing, securely and privately.",
             image: _buildImage(context, 'assets/images/welcome.png'),

@@ -1,8 +1,8 @@
-import { ethers } from "hardhat";
 import { expect } from "chai";
 import { Signer } from "ethers";
+import { ethers } from "hardhat";
 
-describe("MediChain", function () {
+describe("Medileger", function () {
   let contract: any;
   let hospitalA: Signer;
   let hospitalB: Signer;
@@ -14,8 +14,8 @@ describe("MediChain", function () {
     hospitalAAddr = await hospitalA.getAddress();
     hospitalBAddr = await hospitalB.getAddress();
 
-    const MediChain = await ethers.getContractFactory("MediChain");
-    contract = await MediChain.deploy();
+    const Medileger = await ethers.getContractFactory("Medileger");
+    contract = await Medileger.deploy();
     await contract.waitForDeployment();
   });
 

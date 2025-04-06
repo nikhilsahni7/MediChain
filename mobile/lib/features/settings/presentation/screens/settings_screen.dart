@@ -60,8 +60,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         connector = WalletConnect(
           bridge: 'https://bridge.walletconnect.org',
           clientMeta: const PeerMeta(
-            name: 'MediChain',
-            description: 'Connect your MetaMask wallet to MediChain',
+            name: 'medileger',
+            description: 'Connect your MetaMask wallet to medileger',
             url: 'https://medichain.app',
             icons: ['https://walletconnect.org/walletconnect-logo.png'],
           ),

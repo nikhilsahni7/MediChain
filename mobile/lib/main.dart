@@ -27,6 +27,22 @@ void main() async {
   // Initialize SharedPreferences instance
   final sharedPreferences = await SharedPreferences.getInstance();
 
+  // Capture Flutter errors
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // Suppress WalletConnect socket connection errors
+    final String error = details.exception.toString();
+    if (error.contains('Failed host lookup: \'y.bridge.walletconnect.org\'') ||
+        error.contains('WebSocketChannel.connect') ||
+        error.contains('walletconnect_dart')) {
+      // Suppress these specific errors
+      debugPrint('Suppressed WalletConnect error: ${details.exception}');
+      return;
+    }
+
+    // Forward other errors to Flutter's normal error handling
+    FlutterError.presentError(details);
+  };
+
   runApp(
     // Wrap the entire app in a ProviderScope
     // Override the sharedPreferencesProvider with the preloaded instance
@@ -36,7 +52,7 @@ void main() async {
         sharedPreferencesInstanceProvider
             .overrideWith((ref) async => sharedPreferences),
       ],
-      child: const MediChainApp(),
+      child: const medilegerApp(),
     ),
   );
 }

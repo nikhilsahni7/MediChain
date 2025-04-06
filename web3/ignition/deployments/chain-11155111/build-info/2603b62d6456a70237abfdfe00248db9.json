@@ -6,8 +6,8 @@
   "input": {
     "language": "Solidity",
     "sources": {
-      "contracts/MediChain.sol": {
-        "content": "// SPDX-License-Identifier: GPL-3.0\npragma solidity ^0.8.26;\n\ncontract MediChain {\n    struct InventoryCommitment {\n        bytes32 inventoryHash;\n        uint256 timestamp;\n        bool exists;\n    }\n    struct Order {\n        bytes32 orderHash;\n        address from;\n        address to;\n        uint256 timestamp;\n        string status; // \"Pending\", \"Completed\", \"Cancelled\"\n    }\n\n    // map of hospital -> inventory hash\n    mapping(address => InventoryCommitment) public inventoryCommitments;\n    Order[] public orders;\n\n    // these are notifs for frontend, like printing to console\n    // but for blockchain\n    // they are not stored on the blockchain, just emitted\n    // so they are not part of the state\n    event InventoryCommitted(\n        address indexed hospital,\n        bytes32 inventoryHash,\n        uint256 timestamp\n    );\n    event OrderPlaced(\n        bytes32 indexed orderHash,\n        address indexed from,\n        address indexed to,\n        uint256 timestamp\n    );\n    event OrderStatusUpdated(bytes32 indexed orderHash, string newStatus);\n\n    // hospitals \"commit\" inventory by storing hash (fingerprint of their stock).\n    function commitInventory(bytes32 _inventoryHash) public {\n        inventoryCommitments[msg.sender] = InventoryCommitment({\n            inventoryHash: _inventoryHash,\n            timestamp: block.timestamp,\n            exists: true\n        });\n        emit InventoryCommitted(msg.sender, _inventoryHash, block.timestamp);\n    }\n\n    // buyers can only place orders if seller has committed inventory, \n    //which is added to our orders arraylist.\n    function placeOrder(bytes32 _orderHash, address _from) public {\n        require( // verifying\n            inventoryCommitments[_from].exists,\n            \"seller hospital has not committed inventory\"\n        );\n\n        Order memory newOrder = Order({\n            orderHash: _orderHash,\n            from: _from,\n            to: msg.sender,\n            timestamp: block.timestamp,\n            status: \"Pending\"\n        });\n\n        orders.push(newOrder);\n\n        emit OrderPlaced(_orderHash, _from, msg.sender, block.timestamp);\n    }\n\n    function getOrderByIndex(\n        uint256 _index\n    )\n        public\n        view\n        returns (\n            bytes32 orderHash,\n            address from,\n            address to,\n            uint256 timestamp,\n            string memory status\n        )\n    {\n        require(_index < orders.length, \"order idx outside bounds\");\n        Order memory order = orders[_index];\n        return (\n            order.orderHash,\n            order.from,\n            order.to,\n            order.timestamp,\n            order.status\n        );\n    }\n\n    function updateOrderStatus(\n        uint256 _index,\n        string memory _newStatus\n    ) public {\n        require(_index < orders.length, \"Order index out of bounds\");\n        Order storage order = orders[_index];\n\n        // ensure only the involved hospitals can update the status\n        require(\n            msg.sender == order.from || msg.sender == order.to,\n            \"only involved hospitals can update order status\"\n        );\n\n        order.status = _newStatus;\n\n        emit OrderStatusUpdated(order.orderHash, _newStatus);\n    }\n\n    function getOrderCount() public view returns (uint256) {\n        return orders.length;\n    }\n\n    function hasCommittedInventory(\n        address _hospital\n    ) public view returns (bool) {\n        return inventoryCommitments[_hospital].exists;\n    }\n\n    function getInventoryCommitment(\n        address _hospital\n    ) public view returns (bytes32, uint256) {\n        require(\n            inventoryCommitments[_hospital].exists,\n            \"no inventory committed by this hospital\"\n        );\n        return (\n            inventoryCommitments[_hospital].inventoryHash,\n            inventoryCommitments[_hospital].timestamp\n        );\n    }\n}\n"
+      "contracts/Medileger.sol": {
+        "content": "// SPDX-License-Identifier: GPL-3.0\npragma solidity ^0.8.26;\n\ncontract Medileger {\n    struct InventoryCommitment {\n        bytes32 inventoryHash;\n        uint256 timestamp;\n        bool exists;\n    }\n    struct Order {\n        bytes32 orderHash;\n        address from;\n        address to;\n        uint256 timestamp;\n        string status; // \"Pending\", \"Completed\", \"Cancelled\"\n    }\n\n    // map of hospital -> inventory hash\n    mapping(address => InventoryCommitment) public inventoryCommitments;\n    Order[] public orders;\n\n    // these are notifs for frontend, like printing to console\n    // but for blockchain\n    // they are not stored on the blockchain, just emitted\n    // so they are not part of the state\n    event InventoryCommitted(\n        address indexed hospital,\n        bytes32 inventoryHash,\n        uint256 timestamp\n    );\n    event OrderPlaced(\n        bytes32 indexed orderHash,\n        address indexed from,\n        address indexed to,\n        uint256 timestamp\n    );\n    event OrderStatusUpdated(bytes32 indexed orderHash, string newStatus);\n\n    // hospitals \"commit\" inventory by storing hash (fingerprint of their stock).\n    function commitInventory(bytes32 _inventoryHash) public {\n        inventoryCommitments[msg.sender] = InventoryCommitment({\n            inventoryHash: _inventoryHash,\n            timestamp: block.timestamp,\n            exists: true\n        });\n        emit InventoryCommitted(msg.sender, _inventoryHash, block.timestamp);\n    }\n\n    // buyers can only place orders if seller has committed inventory, \n    //which is added to our orders arraylist.\n    function placeOrder(bytes32 _orderHash, address _from) public {\n        require( // verifying\n            inventoryCommitments[_from].exists,\n            \"seller hospital has not committed inventory\"\n        );\n\n        Order memory newOrder = Order({\n            orderHash: _orderHash,\n            from: _from,\n            to: msg.sender,\n            timestamp: block.timestamp,\n            status: \"Pending\"\n        });\n\n        orders.push(newOrder);\n\n        emit OrderPlaced(_orderHash, _from, msg.sender, block.timestamp);\n    }\n\n    function getOrderByIndex(\n        uint256 _index\n    )\n        public\n        view\n        returns (\n            bytes32 orderHash,\n            address from,\n            address to,\n            uint256 timestamp,\n            string memory status\n        )\n    {\n        require(_index < orders.length, \"order idx outside bounds\");\n        Order memory order = orders[_index];\n        return (\n            order.orderHash,\n            order.from,\n            order.to,\n            order.timestamp,\n            order.status\n        );\n    }\n\n    function updateOrderStatus(\n        uint256 _index,\n        string memory _newStatus\n    ) public {\n        require(_index < orders.length, \"Order index out of bounds\");\n        Order storage order = orders[_index];\n\n        // ensure only the involved hospitals can update the status\n        require(\n            msg.sender == order.from || msg.sender == order.to,\n            \"only involved hospitals can update order status\"\n        );\n\n        order.status = _newStatus;\n\n        emit OrderStatusUpdated(order.orderHash, _newStatus);\n    }\n\n    function getOrderCount() public view returns (uint256) {\n        return orders.length;\n    }\n\n    function hasCommittedInventory(\n        address _hospital\n    ) public view returns (bool) {\n        return inventoryCommitments[_hospital].exists;\n    }\n\n    function getInventoryCommitment(\n        address _hospital\n    ) public view returns (bytes32, uint256) {\n        require(\n            inventoryCommitments[_hospital].exists,\n            \"no inventory committed by this hospital\"\n        );\n        return (\n            inventoryCommitments[_hospital].inventoryHash,\n            inventoryCommitments[_hospital].timestamp\n        );\n    }\n}\n"
       }
     },
     "settings": {
@@ -25,22 +25,18 @@
             "evm.methodIdentifiers",
             "metadata"
           ],
-          "": [
-            "ast"
-          ]
+          "": ["ast"]
         }
       }
     }
   },
   "output": {
     "sources": {
-      "contracts/MediChain.sol": {
+      "contracts/Medileger.sol": {
         "ast": {
-          "absolutePath": "contracts/MediChain.sol",
+          "absolutePath": "contracts/Medileger.sol",
           "exportedSymbols": {
-            "MediChain": [
-              266
-            ]
+            "Medileger": [266]
           },
           "id": 267,
           "license": "GPL-3.0",
@@ -48,32 +44,25 @@
           "nodes": [
             {
               "id": 1,
-              "literals": [
-                "solidity",
-                "^",
-                "0.8",
-                ".26"
-              ],
+              "literals": ["solidity", "^", "0.8", ".26"],
               "nodeType": "PragmaDirective",
               "src": "36:24:0"
             },
             {
               "abstract": false,
               "baseContracts": [],
-              "canonicalName": "MediChain",
+              "canonicalName": "Medileger",
               "contractDependencies": [],
               "contractKind": "contract",
               "fullyImplemented": true,
               "id": 266,
-              "linearizedBaseContracts": [
-                266
-              ],
-              "name": "MediChain",
+              "linearizedBaseContracts": [266],
+              "name": "Medileger",
               "nameLocation": "71:9:0",
               "nodeType": "ContractDefinition",
               "nodes": [
                 {
-                  "canonicalName": "MediChain.InventoryCommitment",
+                  "canonicalName": "Medileger.InventoryCommitment",
                   "id": 8,
                   "members": [
                     {
@@ -166,7 +155,7 @@
                   "visibility": "public"
                 },
                 {
-                  "canonicalName": "MediChain.Order",
+                  "canonicalName": "Medileger.Order",
                   "id": 19,
                   "members": [
                     {
@@ -328,7 +317,7 @@
                   "storageLocation": "default",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                    "typeString": "mapping(address => struct MediChain.InventoryCommitment)"
+                    "typeString": "mapping(address => struct Medileger.InventoryCommitment)"
                   },
                   "typeName": {
                     "id": 23,
@@ -348,7 +337,7 @@
                     "src": "430:39:0",
                     "typeDescriptions": {
                       "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                      "typeString": "mapping(address => struct MediChain.InventoryCommitment)"
+                      "typeString": "mapping(address => struct Medileger.InventoryCommitment)"
                     },
                     "valueName": "",
                     "valueNameLocation": "-1:-1:-1",
@@ -358,9 +347,7 @@
                       "pathNode": {
                         "id": 21,
                         "name": "InventoryCommitment",
-                        "nameLocations": [
-                          "449:19:0"
-                        ],
+                        "nameLocations": ["449:19:0"],
                         "nodeType": "IdentifierPath",
                         "referencedDeclaration": 8,
                         "src": "449:19:0"
@@ -369,7 +356,7 @@
                       "src": "449:19:0",
                       "typeDescriptions": {
                         "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage_ptr",
-                        "typeString": "struct MediChain.InventoryCommitment"
+                        "typeString": "struct Medileger.InventoryCommitment"
                       }
                     }
                   },
@@ -389,7 +376,7 @@
                   "storageLocation": "default",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                    "typeString": "struct MediChain.Order[]"
+                    "typeString": "struct Medileger.Order[]"
                   },
                   "typeName": {
                     "baseType": {
@@ -398,9 +385,7 @@
                       "pathNode": {
                         "id": 25,
                         "name": "Order",
-                        "nameLocations": [
-                          "503:5:0"
-                        ],
+                        "nameLocations": ["503:5:0"],
                         "nodeType": "IdentifierPath",
                         "referencedDeclaration": 19,
                         "src": "503:5:0"
@@ -409,7 +394,7 @@
                       "src": "503:5:0",
                       "typeDescriptions": {
                         "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                        "typeString": "struct MediChain.Order"
+                        "typeString": "struct Medileger.Order"
                       }
                     },
                     "id": 27,
@@ -417,7 +402,7 @@
                     "src": "503:7:0",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage_ptr",
-                      "typeString": "struct MediChain.Order[]"
+                      "typeString": "struct Medileger.Order[]"
                     }
                   },
                   "visibility": "public"
@@ -748,7 +733,7 @@
                               "src": "1221:20:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                                "typeString": "mapping(address => struct MediChain.InventoryCommitment storage ref)"
+                                "typeString": "mapping(address => struct Medileger.InventoryCommitment storage ref)"
                               }
                             },
                             "id": 60,
@@ -787,7 +772,7 @@
                             "src": "1221:32:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                              "typeString": "struct MediChain.InventoryCommitment storage ref"
+                              "typeString": "struct Medileger.InventoryCommitment storage ref"
                             }
                           },
                           "nodeType": "Assignment",
@@ -873,7 +858,7 @@
                               "src": "1256:19:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_type$_t_struct$_InventoryCommitment_$8_storage_ptr_$",
-                                "typeString": "type(struct MediChain.InventoryCommitment storage pointer)"
+                                "typeString": "type(struct Medileger.InventoryCommitment storage pointer)"
                               }
                             },
                             "id": 66,
@@ -887,23 +872,19 @@
                               "1333:9:0",
                               "1373:6:0"
                             ],
-                            "names": [
-                              "inventoryHash",
-                              "timestamp",
-                              "exists"
-                            ],
+                            "names": ["inventoryHash", "timestamp", "exists"],
                             "nodeType": "FunctionCall",
                             "src": "1256:140:0",
                             "tryCall": false,
                             "typeDescriptions": {
                               "typeIdentifier": "t_struct$_InventoryCommitment_$8_memory_ptr",
-                              "typeString": "struct MediChain.InventoryCommitment memory"
+                              "typeString": "struct Medileger.InventoryCommitment memory"
                             }
                           },
                           "src": "1221:175:0",
                           "typeDescriptions": {
                             "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                            "typeString": "struct MediChain.InventoryCommitment storage ref"
+                            "typeString": "struct Medileger.InventoryCommitment storage ref"
                           }
                         },
                         "id": 68,
@@ -1102,7 +1083,7 @@
                                   "src": "1711:20:0",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                                    "typeString": "mapping(address => struct MediChain.InventoryCommitment storage ref)"
+                                    "typeString": "mapping(address => struct Medileger.InventoryCommitment storage ref)"
                                   }
                                 },
                                 "id": 88,
@@ -1126,7 +1107,7 @@
                                 "src": "1711:27:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                                  "typeString": "struct MediChain.InventoryCommitment storage ref"
+                                  "typeString": "struct Medileger.InventoryCommitment storage ref"
                                 }
                               },
                               "id": 89,
@@ -1175,11 +1156,7 @@
                             "id": 85,
                             "name": "require",
                             "nodeType": "Identifier",
-                            "overloadedDeclarations": [
-                              -18,
-                              -18,
-                              -18
-                            ],
+                            "overloadedDeclarations": [-18, -18, -18],
                             "referencedDeclaration": -18,
                             "src": "1677:7:0",
                             "typeDescriptions": {
@@ -1208,9 +1185,7 @@
                         "src": "1677:137:0"
                       },
                       {
-                        "assignments": [
-                          95
-                        ],
+                        "assignments": [95],
                         "declarations": [
                           {
                             "constant": false,
@@ -1225,7 +1200,7 @@
                             "storageLocation": "memory",
                             "typeDescriptions": {
                               "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                              "typeString": "struct MediChain.Order"
+                              "typeString": "struct Medileger.Order"
                             },
                             "typeName": {
                               "id": 94,
@@ -1233,9 +1208,7 @@
                               "pathNode": {
                                 "id": 93,
                                 "name": "Order",
-                                "nameLocations": [
-                                  "1825:5:0"
-                                ],
+                                "nameLocations": ["1825:5:0"],
                                 "nodeType": "IdentifierPath",
                                 "referencedDeclaration": 19,
                                 "src": "1825:5:0"
@@ -1244,7 +1217,7 @@
                               "src": "1825:5:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                "typeString": "struct MediChain.Order"
+                                "typeString": "struct Medileger.Order"
                               }
                             },
                             "visibility": "internal"
@@ -1379,7 +1352,7 @@
                             "src": "1849:5:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_type$_t_struct$_Order_$19_storage_ptr_$",
-                              "typeString": "type(struct MediChain.Order storage pointer)"
+                              "typeString": "type(struct Medileger.Order storage pointer)"
                             }
                           },
                           "id": 104,
@@ -1407,7 +1380,7 @@
                           "tryCall": false,
                           "typeDescriptions": {
                             "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                            "typeString": "struct MediChain.Order memory"
+                            "typeString": "struct Medileger.Order memory"
                           }
                         },
                         "nodeType": "VariableDeclarationStatement",
@@ -1425,7 +1398,7 @@
                               "src": "2048:8:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                "typeString": "struct MediChain.Order memory"
+                                "typeString": "struct Medileger.Order memory"
                               }
                             }
                           ],
@@ -1433,7 +1406,7 @@
                             "argumentTypes": [
                               {
                                 "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                "typeString": "struct MediChain.Order memory"
+                                "typeString": "struct Medileger.Order memory"
                               }
                             ],
                             "expression": {
@@ -1445,7 +1418,7 @@
                               "src": "2036:6:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                                "typeString": "struct MediChain.Order storage ref[] storage ref"
+                                "typeString": "struct Medileger.Order storage ref[] storage ref"
                               }
                             },
                             "id": 108,
@@ -1459,7 +1432,7 @@
                             "src": "2036:11:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_function_arraypush_nonpayable$_t_array$_t_struct$_Order_$19_storage_$dyn_storage_ptr_$_t_struct$_Order_$19_storage_$returns$__$attached_to$_t_array$_t_struct$_Order_$19_storage_$dyn_storage_ptr_$",
-                              "typeString": "function (struct MediChain.Order storage ref[] storage pointer,struct MediChain.Order storage ref)"
+                              "typeString": "function (struct Medileger.Order storage ref[] storage pointer,struct Medileger.Order storage ref)"
                             }
                           },
                           "id": 110,
@@ -1741,7 +1714,7 @@
                                   "src": "2432:6:0",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                                    "typeString": "struct MediChain.Order storage ref[] storage ref"
+                                    "typeString": "struct Medileger.Order storage ref[] storage ref"
                                   }
                                 },
                                 "id": 140,
@@ -1795,11 +1768,7 @@
                             "id": 137,
                             "name": "require",
                             "nodeType": "Identifier",
-                            "overloadedDeclarations": [
-                              -18,
-                              -18,
-                              -18
-                            ],
+                            "overloadedDeclarations": [-18, -18, -18],
                             "referencedDeclaration": -18,
                             "src": "2415:7:0",
                             "typeDescriptions": {
@@ -1828,9 +1797,7 @@
                         "src": "2415:59:0"
                       },
                       {
-                        "assignments": [
-                          147
-                        ],
+                        "assignments": [147],
                         "declarations": [
                           {
                             "constant": false,
@@ -1845,7 +1812,7 @@
                             "storageLocation": "memory",
                             "typeDescriptions": {
                               "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                              "typeString": "struct MediChain.Order"
+                              "typeString": "struct Medileger.Order"
                             },
                             "typeName": {
                               "id": 146,
@@ -1853,9 +1820,7 @@
                               "pathNode": {
                                 "id": 145,
                                 "name": "Order",
-                                "nameLocations": [
-                                  "2484:5:0"
-                                ],
+                                "nameLocations": ["2484:5:0"],
                                 "nodeType": "IdentifierPath",
                                 "referencedDeclaration": 19,
                                 "src": "2484:5:0"
@@ -1864,7 +1829,7 @@
                               "src": "2484:5:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                "typeString": "struct MediChain.Order"
+                                "typeString": "struct Medileger.Order"
                               }
                             },
                             "visibility": "internal"
@@ -1881,7 +1846,7 @@
                             "src": "2505:6:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                              "typeString": "struct MediChain.Order storage ref[] storage ref"
+                              "typeString": "struct Medileger.Order storage ref[] storage ref"
                             }
                           },
                           "id": 150,
@@ -1905,7 +1870,7 @@
                           "src": "2505:14:0",
                           "typeDescriptions": {
                             "typeIdentifier": "t_struct$_Order_$19_storage",
-                            "typeString": "struct MediChain.Order storage ref"
+                            "typeString": "struct Medileger.Order storage ref"
                           }
                         },
                         "nodeType": "VariableDeclarationStatement",
@@ -1924,7 +1889,7 @@
                                 "src": "2550:5:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                  "typeString": "struct MediChain.Order memory"
+                                  "typeString": "struct Medileger.Order memory"
                                 }
                               },
                               "id": 153,
@@ -1952,7 +1917,7 @@
                                 "src": "2579:5:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                  "typeString": "struct MediChain.Order memory"
+                                  "typeString": "struct Medileger.Order memory"
                                 }
                               },
                               "id": 155,
@@ -1980,7 +1945,7 @@
                                 "src": "2603:5:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                  "typeString": "struct MediChain.Order memory"
+                                  "typeString": "struct Medileger.Order memory"
                                 }
                               },
                               "id": 157,
@@ -2008,7 +1973,7 @@
                                 "src": "2625:5:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                  "typeString": "struct MediChain.Order memory"
+                                  "typeString": "struct Medileger.Order memory"
                                 }
                               },
                               "id": 159,
@@ -2036,7 +2001,7 @@
                                 "src": "2654:5:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_Order_$19_memory_ptr",
-                                  "typeString": "struct MediChain.Order memory"
+                                  "typeString": "struct Medileger.Order memory"
                                 }
                               },
                               "id": 161,
@@ -2310,7 +2275,7 @@
                                   "src": "2814:6:0",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                                    "typeString": "struct MediChain.Order storage ref[] storage ref"
+                                    "typeString": "struct Medileger.Order storage ref[] storage ref"
                                   }
                                 },
                                 "id": 175,
@@ -2364,11 +2329,7 @@
                             "id": 172,
                             "name": "require",
                             "nodeType": "Identifier",
-                            "overloadedDeclarations": [
-                              -18,
-                              -18,
-                              -18
-                            ],
+                            "overloadedDeclarations": [-18, -18, -18],
                             "referencedDeclaration": -18,
                             "src": "2797:7:0",
                             "typeDescriptions": {
@@ -2397,9 +2358,7 @@
                         "src": "2797:60:0"
                       },
                       {
-                        "assignments": [
-                          182
-                        ],
+                        "assignments": [182],
                         "declarations": [
                           {
                             "constant": false,
@@ -2414,7 +2373,7 @@
                             "storageLocation": "storage",
                             "typeDescriptions": {
                               "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                              "typeString": "struct MediChain.Order"
+                              "typeString": "struct Medileger.Order"
                             },
                             "typeName": {
                               "id": 181,
@@ -2422,9 +2381,7 @@
                               "pathNode": {
                                 "id": 180,
                                 "name": "Order",
-                                "nameLocations": [
-                                  "2867:5:0"
-                                ],
+                                "nameLocations": ["2867:5:0"],
                                 "nodeType": "IdentifierPath",
                                 "referencedDeclaration": 19,
                                 "src": "2867:5:0"
@@ -2433,7 +2390,7 @@
                               "src": "2867:5:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                "typeString": "struct MediChain.Order"
+                                "typeString": "struct Medileger.Order"
                               }
                             },
                             "visibility": "internal"
@@ -2450,7 +2407,7 @@
                             "src": "2889:6:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                              "typeString": "struct MediChain.Order storage ref[] storage ref"
+                              "typeString": "struct Medileger.Order storage ref[] storage ref"
                             }
                           },
                           "id": 185,
@@ -2474,7 +2431,7 @@
                           "src": "2889:14:0",
                           "typeDescriptions": {
                             "typeIdentifier": "t_struct$_Order_$19_storage",
-                            "typeString": "struct MediChain.Order storage ref"
+                            "typeString": "struct Medileger.Order storage ref"
                           }
                         },
                         "nodeType": "VariableDeclarationStatement",
@@ -2542,7 +2499,7 @@
                                     "src": "3017:5:0",
                                     "typeDescriptions": {
                                       "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                      "typeString": "struct MediChain.Order storage pointer"
+                                      "typeString": "struct Medileger.Order storage pointer"
                                     }
                                   },
                                   "id": 191,
@@ -2617,7 +2574,7 @@
                                     "src": "3045:5:0",
                                     "typeDescriptions": {
                                       "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                      "typeString": "struct MediChain.Order storage pointer"
+                                      "typeString": "struct Medileger.Order storage pointer"
                                     }
                                   },
                                   "id": 196,
@@ -2678,11 +2635,7 @@
                             "id": 187,
                             "name": "require",
                             "nodeType": "Identifier",
-                            "overloadedDeclarations": [
-                              -18,
-                              -18,
-                              -18
-                            ],
+                            "overloadedDeclarations": [-18, -18, -18],
                             "referencedDeclaration": -18,
                             "src": "2982:7:0",
                             "typeDescriptions": {
@@ -2727,7 +2680,7 @@
                               "src": "3137:5:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                "typeString": "struct MediChain.Order storage pointer"
+                                "typeString": "struct Medileger.Order storage pointer"
                               }
                             },
                             "id": 204,
@@ -2782,7 +2735,7 @@
                                 "src": "3197:5:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_Order_$19_storage_ptr",
-                                  "typeString": "struct MediChain.Order storage pointer"
+                                  "typeString": "struct Medileger.Order storage pointer"
                                 }
                               },
                               "id": 210,
@@ -2955,7 +2908,7 @@
                             "src": "3310:6:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_array$_t_struct$_Order_$19_storage_$dyn_storage",
-                              "typeString": "struct MediChain.Order storage ref[] storage ref"
+                              "typeString": "struct Medileger.Order storage ref[] storage ref"
                             }
                           },
                           "id": 221,
@@ -3051,7 +3004,7 @@
                               "src": "3444:20:0",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                                "typeString": "mapping(address => struct MediChain.InventoryCommitment storage ref)"
+                                "typeString": "mapping(address => struct Medileger.InventoryCommitment storage ref)"
                               }
                             },
                             "id": 233,
@@ -3075,7 +3028,7 @@
                             "src": "3444:31:0",
                             "typeDescriptions": {
                               "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                              "typeString": "struct MediChain.InventoryCommitment storage ref"
+                              "typeString": "struct Medileger.InventoryCommitment storage ref"
                             }
                           },
                           "id": 234,
@@ -3203,7 +3156,7 @@
                                   "src": "3630:20:0",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                                    "typeString": "mapping(address => struct MediChain.InventoryCommitment storage ref)"
+                                    "typeString": "mapping(address => struct Medileger.InventoryCommitment storage ref)"
                                   }
                                 },
                                 "id": 249,
@@ -3227,7 +3180,7 @@
                                 "src": "3630:31:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                                  "typeString": "struct MediChain.InventoryCommitment storage ref"
+                                  "typeString": "struct Medileger.InventoryCommitment storage ref"
                                 }
                               },
                               "id": 250,
@@ -3276,11 +3229,7 @@
                             "id": 246,
                             "name": "require",
                             "nodeType": "Identifier",
-                            "overloadedDeclarations": [
-                              -18,
-                              -18,
-                              -18
-                            ],
+                            "overloadedDeclarations": [-18, -18, -18],
                             "referencedDeclaration": -18,
                             "src": "3609:7:0",
                             "typeDescriptions": {
@@ -3322,7 +3271,7 @@
                                   "src": "3764:20:0",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                                    "typeString": "mapping(address => struct MediChain.InventoryCommitment storage ref)"
+                                    "typeString": "mapping(address => struct Medileger.InventoryCommitment storage ref)"
                                   }
                                 },
                                 "id": 256,
@@ -3346,7 +3295,7 @@
                                 "src": "3764:31:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                                  "typeString": "struct MediChain.InventoryCommitment storage ref"
+                                  "typeString": "struct Medileger.InventoryCommitment storage ref"
                                 }
                               },
                               "id": 257,
@@ -3375,7 +3324,7 @@
                                   "src": "3823:20:0",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_InventoryCommitment_$8_storage_$",
-                                    "typeString": "mapping(address => struct MediChain.InventoryCommitment storage ref)"
+                                    "typeString": "mapping(address => struct Medileger.InventoryCommitment storage ref)"
                                   }
                                 },
                                 "id": 260,
@@ -3399,7 +3348,7 @@
                                 "src": "3823:31:0",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_struct$_InventoryCommitment_$8_storage",
-                                  "typeString": "struct MediChain.InventoryCommitment storage ref"
+                                  "typeString": "struct Medileger.InventoryCommitment storage ref"
                                 }
                               },
                               "id": 261,
@@ -3552,11 +3501,7 @@
               "scope": 267,
               "src": "62:3821:0",
               "usedErrors": [],
-              "usedEvents": [
-                36,
-                46,
-                52
-              ]
+              "usedEvents": [36, 46, 52]
             }
           ],
           "src": "36:3848:0"
@@ -3565,8 +3510,8 @@
       }
     },
     "contracts": {
-      "contracts/MediChain.sol": {
-        "MediChain": {
+      "contracts/Medileger.sol": {
+        "Medileger": {
           "abi": [
             {
               "anonymous": false,
@@ -15854,7 +15799,7 @@
               "updateOrderStatus(uint256,string)": "205fdde6"
             }
           },
-          "metadata": "{\"compiler\":{\"version\":\"0.8.26+commit.8a97fa7a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"hospital\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"inventoryHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"InventoryCommitted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"OrderPlaced\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"newStatus\",\"type\":\"string\"}],\"name\":\"OrderStatusUpdated\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_inventoryHash\",\"type\":\"bytes32\"}],\"name\":\"commitInventory\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_hospital\",\"type\":\"address\"}],\"name\":\"getInventoryCommitment\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_index\",\"type\":\"uint256\"}],\"name\":\"getOrderByIndex\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"status\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getOrderCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_hospital\",\"type\":\"address\"}],\"name\":\"hasCommittedInventory\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"inventoryCommitments\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"inventoryHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"exists\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"orders\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"status\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_orderHash\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"}],\"name\":\"placeOrder\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_index\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"_newStatus\",\"type\":\"string\"}],\"name\":\"updateOrderStatus\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/MediChain.sol\":\"MediChain\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts/MediChain.sol\":{\"keccak256\":\"0x62dc4e146639c675a60e8b442a9e5fbb8c7c47d2d62487e758526bd1926e0e4f\",\"license\":\"GPL-3.0\",\"urls\":[\"bzz-raw://88929a71bc501c55b005be64dfd4e7f67a1c9e23098da5ebf7991edb16f96830\",\"dweb:/ipfs/QmZwKq3Ndo2dUmSVZfq37yijAMt1UAF6JneSVckvTHoT5W\"]}},\"version\":1}"
+          "metadata": "{\"compiler\":{\"version\":\"0.8.26+commit.8a97fa7a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"hospital\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"inventoryHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"InventoryCommitted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"OrderPlaced\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"newStatus\",\"type\":\"string\"}],\"name\":\"OrderStatusUpdated\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_inventoryHash\",\"type\":\"bytes32\"}],\"name\":\"commitInventory\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_hospital\",\"type\":\"address\"}],\"name\":\"getInventoryCommitment\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_index\",\"type\":\"uint256\"}],\"name\":\"getOrderByIndex\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"status\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getOrderCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_hospital\",\"type\":\"address\"}],\"name\":\"hasCommittedInventory\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"inventoryCommitments\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"inventoryHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"exists\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"orders\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"orderHash\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"status\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_orderHash\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"}],\"name\":\"placeOrder\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_index\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"_newStatus\",\"type\":\"string\"}],\"name\":\"updateOrderStatus\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/Medileger.sol\":\"Medileger\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts/Medileger.sol\":{\"keccak256\":\"0x62dc4e146639c675a60e8b442a9e5fbb8c7c47d2d62487e758526bd1926e0e4f\",\"license\":\"GPL-3.0\",\"urls\":[\"bzz-raw://88929a71bc501c55b005be64dfd4e7f67a1c9e23098da5ebf7991edb16f96830\",\"dweb:/ipfs/QmZwKq3Ndo2dUmSVZfq37yijAMt1UAF6JneSVckvTHoT5W\"]}},\"version\":1}"
         }
       }
     }

@@ -6,39 +6,113 @@ plugins {
 }
 
 android {
-    namespace = "com.example.medileger"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    namespace "com.example.medileger"
+    compileSdk 35
+    ndkVersion flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.medileger"
+        applicationId "com.example.medileger"
         // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
-        targetSdk = 35
-        versionCode = flutter.versionCode
+        // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
+        minSdkVersion 23
+        targetSdkVersion flutter.targetSdkVersion
+        versionCode = flutter.versionCode.toInteger()
         versionName = flutter.versionName
+    }
+
+    signingConfigs {
+        release {
+            // You can specify the signing properties in a separate file that you don't check into version control
+            // Create a file called key.properties in the android/ directory with the following content:
+            // storePassword=your_keystore_password
+            // keyPassword=your_key_password
+            // keyAlias=your_key_alias
+            // storeFile=path/to/your/keystore.jks
+            if (project.hasProperty('keyStorePath')) {
+                storeFile file(project.property('keyStorePath'))
+                storePassword project.property('keyStorePassword')
+                keyAlias project.property('keyAlias')
+                keyPassword project.property('keyPassword')
+            }
+        }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            if (project.hasProperty('keyStorePath')) {
+                signingConfig signingConfigs.release
+            } else {
+                // Fallback to debug signing if no production keys are available
+                signingConfig signingConfigs.debug
+            }
+
+            // Re-enable minification with proper configuration
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            // Add fallbacks for google pay classes that may not be available
+            buildConfigField "boolean", "USE_GPAY", "true"
+
+            ndk {
+                abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            }
         }
+
+        debug {
+            minifyEnabled false
+            buildConfigField "boolean", "USE_GPAY", "false"
+        }
+    }
+
+    lintOptions {
+        disable 'InvalidPackage'
+        checkReleaseBuilds false
+    }
+
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/license.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/notice.txt'
+        exclude 'META-INF/ASL2.0'
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    // Google Pay implementation for Razorpay
+    implementation 'com.google.android.gms:play-services-wallet:19.3.0'
+
+    // Exclude conflicting libraries that are already included by razorpay_flutter
+    configurations.all {
+        exclude group: 'com.google.android.play', module: 'core'
+        exclude group: 'com.google.android.play', module: 'core-common'
+    }
 }

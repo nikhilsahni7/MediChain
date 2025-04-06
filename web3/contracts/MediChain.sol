@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.26;
 
-contract MediChain {
+contract Medileger {
     struct InventoryCommitment {
         bytes32 inventoryHash;
         uint256 timestamp;
@@ -46,7 +46,7 @@ contract MediChain {
         emit InventoryCommitted(msg.sender, _inventoryHash, block.timestamp);
     }
 
-    // buyers can only place orders if seller has committed inventory, 
+    // buyers can only place orders if seller has committed inventory,
     //which is added to our orders arraylist.
     function placeOrder(bytes32 _orderHash, address _from) public {
         require( // verifying

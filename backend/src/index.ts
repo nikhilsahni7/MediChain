@@ -30,7 +30,7 @@ app.use("/api/auth", authRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok", message: "MediChain API is running" });
+  res.status(200).json({ status: "ok", message: "Medileger API is running" });
 });
 
 // Error handling middleware

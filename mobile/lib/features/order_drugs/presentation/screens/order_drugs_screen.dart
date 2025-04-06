@@ -1,8 +1,8 @@
+import 'package:medileger/core/services/medicine_service.dart';
+import 'package:medileger/core/services/order_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:medileger/core/services/medicine_service.dart';
-import 'package:medileger/core/services/order_service.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,6 +22,9 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
 
   // Razorpay
   late Razorpay _razorpay;
+
+  // Scrolling
+  final ScrollController _scrollController = ScrollController();
 
   // UI state
   bool _isLoading = false;
@@ -155,12 +158,24 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
 
   void _selectHospital(MedicineSearchResult result) {
     setState(() => _selectedResult = result);
+
+    // Scroll to the bottom where the Place Order button is located
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _createOrder() async {
     if (_selectedResult == null) return;
 
-    setState(() => _isLoading = true);
+    // Show custom order processing animation instead of simple loading indicator
+    _showOrderProcessingAnimation();
 
     try {
       final quantity = int.parse(_quantityController.text.trim());
@@ -223,6 +238,9 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
             );
           }
 
+          // Dismiss the processing animation
+          Navigator.of(context).pop();
+
           if (paymentOrder != null) {
             // Launch Razorpay payment
             var options = {
@@ -251,19 +269,255 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
             _mockPaymentSuccess(orderId);
           }
         } catch (e) {
+          // Dismiss the processing animation if still showing
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+
           debugPrint('Payment processing error: $e');
           // Mock payment success for demo if backend is unavailable
           _mockPaymentSuccess(orderId);
         }
       } else if (_selectedPaymentMethod == 'crypto') {
+        // Dismiss the processing animation
+        Navigator.of(context).pop();
+
         // For future implementation - show crypto payment dialog
         _showCryptoPaymentInfo(orderId, _selectedResult!.name, quantity, price);
       }
     } catch (e) {
+      // Dismiss the processing animation if still showing
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
       _setError('Order failed: ${e.toString()}');
-    } finally {
-      setState(() => _isLoading = false);
     }
+  }
+
+  // Show an engaging order processing animation
+  void _showOrderProcessingAnimation() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        final colorScheme = Theme.of(context).colorScheme;
+
+        return PopScope(
+          canPop: false,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Medicine pill animation
+                  SizedBox(
+                    height: 150,
+                    width: 150,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Circular progress indicator
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0.0, end: 1.0),
+                          duration: const Duration(seconds: 3),
+                          builder: (context, value, child) {
+                            return CircularProgressIndicator(
+                              value: value,
+                              strokeWidth: 5,
+                              color: colorScheme.primary,
+                              backgroundColor:
+                                  colorScheme.primaryContainer.withOpacity(0.3),
+                            );
+                          },
+                        ),
+
+                        // Animated icon
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0.0, end: 1.0),
+                          duration: const Duration(milliseconds: 800),
+                          builder: (context, value, child) {
+                            return Transform.scale(
+                              scale: 0.8 + (value * 0.2),
+                              child: Icon(
+                                Icons.medication_rounded,
+                                size: 70,
+                                color: colorScheme.primary.withOpacity(value),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Status text with typing animation
+                  DefaultTextStyle(
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0.0, end: 1.0),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Opacity(
+                          opacity: value,
+                          child: const Text(
+                            'Processing Order',
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Progress steps indicators
+                  FutureBuilder(
+                    future: Future.delayed(const Duration(milliseconds: 800)),
+                    builder: (context, snapshot) {
+                      return AnimatedOpacity(
+                        opacity:
+                            snapshot.connectionState == ConnectionState.done
+                                ? 1.0
+                                : 0.0,
+                        duration: const Duration(milliseconds: 500),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildProcessingStep(
+                              icon: Icons.inventory_2,
+                              color: colorScheme.primary,
+                              isActive: true,
+                              label: 'Checking',
+                            ),
+                            _buildStepConnector(isActive: true),
+                            FutureBuilder(
+                              future: Future.delayed(
+                                  const Duration(milliseconds: 1600)),
+                              builder: (context, snapshot) {
+                                final isActive = snapshot.connectionState ==
+                                    ConnectionState.done;
+                                return _buildProcessingStep(
+                                  icon: Icons.shopping_cart,
+                                  color: colorScheme.primary,
+                                  isActive: isActive,
+                                  label: 'Ordering',
+                                );
+                              },
+                            ),
+                            FutureBuilder(
+                              future: Future.delayed(
+                                  const Duration(milliseconds: 1600)),
+                              builder: (context, snapshot) {
+                                final isActive = snapshot.connectionState ==
+                                    ConnectionState.done;
+                                return _buildStepConnector(isActive: isActive);
+                              },
+                            ),
+                            FutureBuilder(
+                              future: Future.delayed(
+                                  const Duration(milliseconds: 2400)),
+                              builder: (context, snapshot) {
+                                final isActive = snapshot.connectionState ==
+                                    ConnectionState.done;
+                                return _buildProcessingStep(
+                                  icon: Icons.payments,
+                                  color: colorScheme.primary,
+                                  isActive: isActive,
+                                  label: 'Payment',
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Text(
+                    'Please wait while we process your order...',
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper widget for processing step indicator
+  Widget _buildProcessingStep({
+    required IconData icon,
+    required Color color,
+    required bool isActive,
+    required String label,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isActive ? color : Colors.grey.shade200,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            icon,
+            color: isActive ? Colors.white : Colors.grey.shade500,
+            size: 16,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: isActive ? color : Colors.grey.shade500,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper widget for step connector
+  Widget _buildStepConnector({required bool isActive}) {
+    return Container(
+      width: 30,
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: isActive
+          ? Theme.of(context).colorScheme.primary
+          : Colors.grey.shade300,
+    );
   }
 
   // Mock payment success when backend is unavailable
@@ -362,28 +616,37 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                 color: success ? Colors.green : Colors.red,
               ),
               const SizedBox(width: 8),
-              Text(title),
+              Flexible(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(message),
-              if (success) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Transaction Details',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message),
+                if (success) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Transaction Details',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                    'Date: ${DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now())}'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Date: ${DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now())}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -496,6 +759,7 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
               onTap: () => FocusScope.of(context).unfocus(),
               child: SafeArea(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,18 +800,31 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
 
                         // Place Order Button (inside the scroll view)
                         const SizedBox(height: 32),
-                        SizedBox(
+                        Container(
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: colorScheme.primary.withOpacity(0.3),
+                                spreadRadius: 1,
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: _createOrder,
-                            icon: const Icon(Icons.shopping_cart),
-                            label: const Text('Place Order Now'),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              textStyle: const TextStyle(
-                                fontSize: 16,
+                            icon: const Icon(Icons.shopping_cart, size: 24),
+                            label: Text(
+                              'Place Order Now',
+                              style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimary,
                               ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 18),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -561,17 +838,6 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                 ),
               ),
             ),
-
-      // We'll keep the floating action button for smaller screens
-      floatingActionButton: _selectedResult != null && screenSize.width < 500
-          ? FloatingActionButton.extended(
-              onPressed: _createOrder,
-              icon: const Icon(Icons.shopping_cart),
-              label: const Text('Place Order'),
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
-            )
-          : null,
     );
   }
 
@@ -936,57 +1202,20 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                 Flexible(
                   child: Wrap(
                     spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.payments_outlined,
-                              size: 14,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'Razorpay',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
+                      _buildPaymentOptionChip(
+                        icon: Icons.payments_outlined,
+                        label: 'Razorpay',
+                        color: colorScheme.primary,
+                        backgroundColor: Colors.blue.withOpacity(0.1),
                       ),
                       if (result.paymentOptions['crypto'] == true)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.currency_bitcoin,
-                                size: 14,
-                                color: Colors.amber.shade800,
-                              ),
-                              const SizedBox(width: 4),
-                              const Text(
-                                'Crypto',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
+                        _buildPaymentOptionChip(
+                          icon: Icons.currency_bitcoin,
+                          label: 'Crypto',
+                          color: Colors.amber.shade800,
+                          backgroundColor: Colors.amber.withOpacity(0.1),
                         ),
                     ],
                   ),
@@ -1008,7 +1237,7 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
       TextTheme textTheme, ColorScheme colorScheme) {
     if (_selectedResult == null) return const SizedBox.shrink();
 
-    // Calculate a simple price based on quantity (in a real app this would come from backend)
+    // Calculate a simple price based on quantity (in a real app this would come from the backend)
     final quantity = int.tryParse(_quantityController.text) ?? 0;
     final price = quantity * 100; // Just a mock price of 100 per unit
 
@@ -1186,7 +1415,7 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Wallet addresses for crypto payment (future)
+          // Wallet addresses for crypto payment
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1206,12 +1435,12 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildWalletAddressRow(
+                _buildCompactWalletAddressRow(
                   label: 'Your Wallet',
                   address: _currentHospital?.walletAddress ?? '-',
                 ),
                 const SizedBox(height: 8),
-                _buildWalletAddressRow(
+                _buildCompactWalletAddressRow(
                   label: 'Hospital Wallet',
                   address: _selectedResult!.hospital.walletAddress,
                 ),
@@ -1223,6 +1452,66 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
     );
   }
 
+  // A more compact wallet address display specifically for the order summary
+  Widget _buildCompactWalletAddressRow({
+    required String label,
+    required String address,
+  }) {
+    // Format the wallet address to be more readable
+    String displayAddress = address;
+    if (address.length > 16) {
+      displayAddress =
+          '${address.substring(0, 8)}...${address.substring(address.length - 4)}';
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          flex: 4,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 6,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                displayAddress,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  // Copy to clipboard functionality
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Address copied to clipboard')),
+                  );
+                },
+                child: const Icon(
+                  Icons.copy,
+                  size: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOrderDetailRow({
     required IconData icon,
     required String label,
@@ -1231,20 +1520,29 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 20),
           const SizedBox(width: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
+          Expanded(
+            flex: 3,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+          Expanded(
+            flex: 7,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ),
         ],
@@ -1252,52 +1550,37 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
     );
   }
 
-  Widget _buildWalletAddressRow({
+  // Helper method to create consistent payment option chips
+  Widget _buildPaymentOptionChip({
+    required IconData icon,
     required String label,
-    required String address,
+    required Color color,
+    required Color backgroundColor,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 12,
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: color,
           ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                address,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-            SizedBox(
-              width: 40,
-              child: IconButton(
-                icon: const Icon(Icons.copy, size: 16),
-                constraints: const BoxConstraints(),
-                padding: EdgeInsets.zero,
-                onPressed: () {
-                  // Copy to clipboard functionality
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Address copied to clipboard')),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: color),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1306,6 +1589,7 @@ class _OrderDrugsScreenState extends ConsumerState<OrderDrugsScreen> {
     _medicineNameController.dispose();
     _quantityController.dispose();
     _razorpay.clear();
+    _scrollController.dispose();
     super.dispose();
   }
 }

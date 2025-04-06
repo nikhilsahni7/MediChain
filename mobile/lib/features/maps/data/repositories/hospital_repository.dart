@@ -1,6 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:medileger/core/services/api_service.dart';
 import 'package:medileger/features/maps/data/models/hospital_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class HospitalRepository {
   final ApiService _apiService;

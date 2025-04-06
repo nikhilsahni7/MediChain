@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:medileger/core/providers/shared_preferences_provider.dart';
 import 'package:medileger/core/services/auth_service.dart';
 import 'package:medileger/features/auth/presentation/screens/login_screen.dart';
 import 'package:medileger/features/home/presentation/screens/home_screen.dart';
 import 'package:medileger/features/onboarding/presentation/screens/onboarding_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 // Route names
 class AppRoutes {
@@ -56,7 +55,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       if (currentPath == AppRoutes.onboarding) return null;
 
       // If logged in and trying to access login or onboarding, redirect to home
-      if (isLoggedIn && (currentPath == AppRoutes.login || currentPath == AppRoutes.onboarding)) {
+      if (isLoggedIn &&
+          (currentPath == AppRoutes.login ||
+              currentPath == AppRoutes.onboarding)) {
         return AppRoutes.home;
       }
 

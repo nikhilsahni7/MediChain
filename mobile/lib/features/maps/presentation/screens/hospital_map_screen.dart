@@ -1,12 +1,12 @@
 import 'dart:async';
 
+import 'package:medileger/features/maps/data/models/hospital_model.dart';
+import 'package:medileger/features/maps/data/repositories/hospital_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:medileger/features/maps/data/models/hospital_model.dart';
-import 'package:medileger/features/maps/data/repositories/hospital_repository.dart';
 
 class HospitalMapScreen extends ConsumerStatefulWidget {
   const HospitalMapScreen({super.key});

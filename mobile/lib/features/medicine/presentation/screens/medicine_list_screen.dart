@@ -13,6 +13,9 @@ final currentUserProvider = FutureProvider.autoDispose((ref) async {
   return await authService.getCurrentUser();
 });
 
+final medicineSearchProvider = StateProvider<String>((ref) => '');
+final medicineFilterProvider = StateProvider<String>((ref) => 'all');
+
 extension MedicineExtension on Medicine {
   bool get isExpiringSoon {
     final now = DateTime.now();
@@ -103,26 +106,48 @@ class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search medicines...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.shadow.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: colorScheme.outline,
+                          width: 1,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
                       ),
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value.toLowerCase();
-                        });
-                      },
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search medicines...',
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: colorScheme.primary,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          hintStyle: TextStyle(
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.toLowerCase();
+                          });
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Material(
-                    color: colorScheme.primaryContainer,
+                    color: colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       onTap: () {
@@ -148,7 +173,10 @@ class _MedicineListScreenState extends ConsumerState<MedicineListScreen> {
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.all(12),
-                        child: const Icon(Icons.document_scanner_outlined),
+                        child: Icon(
+                          Icons.document_scanner_outlined,
+                          color: colorScheme.onPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -755,4 +783,506 @@ Widget _buildQuickStatCard(
       ),
     ),
   );
+}
+
+class EnhancedMedicineListScreen extends ConsumerStatefulWidget {
+  const EnhancedMedicineListScreen({super.key});
+
+  @override
+  ConsumerState<EnhancedMedicineListScreen> createState() =>
+      _EnhancedMedicineListScreenState();
+}
+
+class _EnhancedMedicineListScreenState
+    extends ConsumerState<EnhancedMedicineListScreen> {
+  String _sortBy = 'name';
+  bool _ascending = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final medicinesAsync = ref.watch(medicinesProvider);
+    final searchQuery = ref.watch(medicineSearchProvider);
+    final filterType = ref.watch(medicineFilterProvider);
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return medicinesAsync.when(
+      data: (medicines) {
+        if (medicines.isEmpty) {
+          return _buildEmptyState(context);
+        }
+
+        // Filter medicines based on search query and selected filter
+        var filteredMedicines = medicines.where((medicine) {
+          final matchesSearch =
+              medicine.name.toLowerCase().contains(searchQuery);
+
+          switch (filterType) {
+            case 'low_stock':
+              return matchesSearch && medicine.isLowStock;
+            case 'expiring':
+              return matchesSearch && medicine.isExpiringSoon;
+            case 'priority':
+              return matchesSearch && medicine.priority;
+            case 'critical':
+              return matchesSearch && medicine.status == 'critical';
+            case 'good':
+              return matchesSearch && medicine.status == 'good';
+            case 'recent':
+              // Assume medicines added in the last 7 days are "recent"
+              final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+              return matchesSearch && medicine.createdAt.isAfter(weekAgo);
+            case 'regular':
+              return matchesSearch && !medicine.priority;
+            default: // 'all'
+              return matchesSearch;
+          }
+        }).toList();
+
+        // Sort medicines
+        filteredMedicines.sort((a, b) {
+          if (_sortBy == 'name') {
+            return _ascending
+                ? a.name.compareTo(b.name)
+                : b.name.compareTo(a.name);
+          } else if (_sortBy == 'quantity') {
+            return _ascending
+                ? a.quantity.compareTo(b.quantity)
+                : b.quantity.compareTo(a.quantity);
+          } else {
+            return _ascending
+                ? a.expiry.compareTo(b.expiry)
+                : b.expiry.compareTo(a.expiry);
+          }
+        });
+
+        // Create a ListView that includes both the compact summary card AND the medicine list
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            // Compact inventory summary card - only show when no filter is active
+            if (filterType == 'all' && searchQuery.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: _buildCompactSummaryCard(context, medicines),
+              ),
+
+            // Sort and view options with item count
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      '${filteredMedicines.length} ${filteredMedicines.length == 1 ? 'medicine' : 'medicines'}',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      PopupMenuButton<String>(
+                        icon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.sort,
+                              size: 18,
+                              color: colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Sort',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onSelected: (value) {
+                          setState(() {
+                            if (_sortBy == value) {
+                              // Toggle direction if same sort field is selected
+                              _ascending = !_ascending;
+                            } else {
+                              _sortBy = value;
+                              _ascending = true;
+                            }
+                          });
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'name',
+                            child: Text('Name'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'quantity',
+                            child: Text('Quantity'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'expiry',
+                            child: Text('Expiry Date'),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: Icon(
+                            _ascending
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            size: 18),
+                        onPressed: () {
+                          setState(() {
+                            _ascending = !_ascending;
+                          });
+                        },
+                        tooltip: _ascending ? 'Ascending' : 'Descending',
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Medicine list with improved spacing
+            if (filteredMedicines.isEmpty)
+              _buildNoResultsFound(context)
+            else
+              ...filteredMedicines.map((medicine) => Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: MedicineCard(medicine: medicine),
+                  )),
+
+            // Bottom padding for FAB
+            const SizedBox(height: 80),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(context, error),
+    );
+  }
+
+  // Empty state when no medicines are found
+  Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 64,
+            color: colorScheme.primary.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Medicines in Inventory',
+            style: textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Add medicines to your inventory',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const MedicineScanScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Add Medicine'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // No results found state
+  Widget _buildNoResultsFound(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 48,
+            color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Matching Medicines',
+            style: textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting your search or filters',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () {
+              // Reset all filters correctly
+              ref.read(medicineSearchProvider.notifier).update((_) => '');
+              ref.read(medicineFilterProvider.notifier).update((_) => 'all');
+            },
+            child: const Text('Clear Filters'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Error state
+  Widget _buildErrorState(BuildContext context, Object error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const SizedBox(height: 16),
+          Text('Error loading medicines: $error'),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              ref.invalidate(medicinesProvider);
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Compact version of the inventory value card
+  Widget _buildCompactSummaryCard(
+      BuildContext context, List<Medicine> medicines) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    // Calculate stats
+    final totalMedicines = medicines.length;
+    final criticalCount = medicines.where((m) => m.status == 'critical').length;
+    final expiringCount = medicines.where((m) => m.isExpiringSoon).length;
+    final lowStockCount = medicines.where((m) => m.isLowStock).length;
+
+    // Calculate total value (simplified for demo)
+    final totalValue = medicines.length * 1250;
+    final formattedValue = NumberFormat("#,##0").format(totalValue);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.primary,
+            colorScheme.secondary.withOpacity(0.8),
+          ],
+          stops: const [0.3, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row with value and live indicator
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      '\$',
+                      style: textTheme.titleLarge?.copyWith(
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w500,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      formattedValue,
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 2,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'INVENTORY VALUE',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Stats row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildCompactStat(
+                  context,
+                  'Total',
+                  totalMedicines.toString(),
+                  Icons.medication_outlined,
+                ),
+                _buildCompactStat(
+                  context,
+                  'Critical',
+                  criticalCount.toString(),
+                  Icons.warning_amber_outlined,
+                  isWarning: criticalCount > 0,
+                ),
+                _buildCompactStat(
+                  context,
+                  'Expiring',
+                  expiringCount.toString(),
+                  Icons.event_outlined,
+                  isWarning: expiringCount > 0,
+                ),
+                _buildCompactStat(
+                  context,
+                  'Low Stock',
+                  lowStockCount.toString(),
+                  Icons.inventory_2_outlined,
+                  isWarning: lowStockCount > 0,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method for compact stat widgets
+  Widget _buildCompactStat(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon, {
+    bool isWarning = false,
+  }) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: isWarning ? Colors.amber : Colors.white,
+            size: 18,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 10,
+                letterSpacing: 0.5,
+              ),
+        ),
+      ],
+    );
+  }
 }

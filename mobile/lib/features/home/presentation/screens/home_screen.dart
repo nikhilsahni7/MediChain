@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:medileger/core/services/auth_service.dart';
+import 'package:medileger/features/analytics/presentation/screens/analytics_screen.dart';
 import 'package:medileger/features/maps/presentation/screens/hospital_map_screen.dart';
 import 'package:medileger/features/medicine/data/providers/medicine_providers.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_list_screen.dart';
 import 'package:medileger/features/medicine/presentation/screens/medicine_scan_screen.dart';
+import 'package:medileger/features/notifications/data/providers/notification_providers.dart';
+import 'package:medileger/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:medileger/features/notifications/presentation/widgets/alert_banner.dart';
 import 'package:medileger/features/order_drugs/presentation/screens/order_drugs_screen.dart';
 import 'package:medileger/features/settings/presentation/screens/settings_screen.dart';
 
@@ -22,6 +26,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToTop = false;
 
   static const List<String> _appBarTitles = [
     'Inventory',
@@ -38,6 +44,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     // Check if user is still logged in
     _checkLoginStatus();
+
+    // Add scroll listener
+    _scrollController.addListener(() {
+      setState(() {
+        _showScrollToTop = _scrollController.offset > 200;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkLoginStatus() async {
@@ -50,17 +69,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // Lazy loaded screens
   late final List<Widget> _widgetOptions = <Widget>[
-    const MedicineListScreen(),
+    _buildEnhancedInventoryScreen(),
     const OrderDrugsScreen(),
     const HospitalMapScreen(),
-    const _PlaceholderScreenWidget(
-        icon: Icons.bar_chart_outlined, title: 'Analytics'),
+    const AnalyticsScreen(),
     const SettingsScreen(),
   ];
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+
+      // Reset scroll position when changing tabs
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
@@ -77,36 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: _widgetOptions,
       ),
       bottomNavigationBar: _buildBottomNav(context, isTablet),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-              heroTag: 'home_fab',
-              onPressed: () {
-                // Open Medicine Scan Screen
-                Navigator.of(context)
-                    .push(
-                  MaterialPageRoute(
-                    builder: (context) => const MedicineScanScreen(),
-                  ),
-                )
-                    .then((result) {
-                  // If medicines were added, refresh the medicine list
-                  if (result != null) {
-                    // Invalidate medicine provider to refresh data
-                    ref.invalidate(medicinesProvider);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Medicines added to inventory!'),
-                        duration: Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                });
-              },
-              tooltip: 'Scan Medicine',
-              child: const Icon(Icons.document_scanner_outlined),
-            )
-          : null,
+      floatingActionButton: _buildFloatingActionButtons(),
     );
   }
 
@@ -140,12 +138,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             },
           ),
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          tooltip: 'Notifications',
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Notifications coming soon')),
+        Consumer(
+          builder: (context, ref, child) {
+            final unreadCount = ref.watch(unreadNotificationsCountProvider);
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined),
+                  tooltip: 'Notifications',
+                  onPressed: () {
+                    // Navigate to notifications screen
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             );
           },
         ),
@@ -220,6 +251,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget? _buildFloatingActionButtons() {
+    if (_selectedIndex == 0) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_showScrollToTop)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: FloatingActionButton.small(
+                heroTag: 'scroll_to_top',
+                onPressed: () {
+                  _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOut,
+                  );
+                },
+                tooltip: 'Scroll to top',
+                child: const Icon(Icons.arrow_upward),
+              ),
+            ),
+          FloatingActionButton(
+            heroTag: 'home_fab',
+            onPressed: () {
+              // Open Medicine Scan Screen
+              Navigator.of(context)
+                  .push(
+                MaterialPageRoute(
+                  builder: (context) => const MedicineScanScreen(),
+                ),
+              )
+                  .then((result) {
+                // If medicines were added, refresh the medicine list
+                if (result != null) {
+                  // Invalidate medicine provider to refresh data
+                  ref.invalidate(medicinesProvider);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Medicines added to inventory!'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              });
+            },
+            tooltip: 'Scan Medicine',
+            child: const Icon(Icons.document_scanner_outlined),
+          ),
+        ],
+      );
+    }
+    return null;
+  }
+
   IconData _getIconForIndex(int index) {
     switch (index) {
       case 0:
@@ -235,6 +321,229 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       default:
         return Icons.home_outlined;
     }
+  }
+
+  Widget _buildEnhancedInventoryScreen() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return CustomScrollView(
+      controller: _scrollController,
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        // Alert banner
+        SliverToBoxAdapter(
+          child: Consumer(
+            builder: (context, ref, child) {
+              final recentAlerts = ref.watch(recentAlertsProvider);
+              return recentAlerts.isNotEmpty
+                  ? const AlertsBanner()
+                  : const SizedBox(height: 4);
+            },
+          ),
+        ),
+
+        // Search bar with improved visual design
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.primary,
+                  colorScheme.primaryContainer,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withOpacity(0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search medicines...',
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      hintStyle: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      // Forward the search query to MedicineListScreen
+                      ref
+                          .read(medicineSearchProvider.notifier)
+                          .update((_) => value.toLowerCase());
+                    },
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.filter_list),
+                    onPressed: () {
+                      // Show filter dialog
+                    },
+                    tooltip: 'Advanced Filters',
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Filter chips with improved visual design
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 50,
+            child: Consumer(
+              builder: (context, ref, child) {
+                final selectedFilter = ref.watch(medicineFilterProvider);
+
+                return ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _buildFilterChip(
+                        'All', Icons.all_inclusive, selectedFilter == 'all'),
+                    _buildFilterChip('Low Stock', Icons.inventory_2_outlined,
+                        selectedFilter == 'low_stock'),
+                    _buildFilterChip(
+                        'Expiring Soon',
+                        Icons.warning_amber_outlined,
+                        selectedFilter == 'expiring'),
+                    _buildFilterChip('Priority', Icons.priority_high,
+                        selectedFilter == 'priority'),
+                    _buildFilterChip(
+                        'Recently Added',
+                        Icons.new_releases_outlined,
+                        selectedFilter == 'recent'),
+                    _buildFilterChip('Categories', Icons.category_outlined,
+                        selectedFilter == 'categories'),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+
+        // Add spacing between filter chips and medicine list
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 16),
+        ),
+
+        // Remainder of the screen filled with medicine list
+        const SliverFillRemaining(
+          hasScrollBody: true,
+          child: EnhancedMedicineListScreen(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String label, IconData icon, bool selected) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: selected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                color: selected
+                    ? colorScheme.onPrimaryContainer
+                    : colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        selected: selected,
+        onSelected: (value) {
+          // Update the filter provider based on selection
+          if (value) {
+            switch (label) {
+              case 'All':
+                ref.read(medicineFilterProvider.notifier).update((_) => 'all');
+                break;
+              case 'Low Stock':
+                ref
+                    .read(medicineFilterProvider.notifier)
+                    .update((_) => 'low_stock');
+                break;
+              case 'Expiring Soon':
+                ref
+                    .read(medicineFilterProvider.notifier)
+                    .update((_) => 'expiring');
+                break;
+              case 'Priority':
+                ref
+                    .read(medicineFilterProvider.notifier)
+                    .update((_) => 'priority');
+                break;
+              case 'Recently Added':
+                ref
+                    .read(medicineFilterProvider.notifier)
+                    .update((_) => 'recent');
+                break;
+              case 'Categories':
+                ref
+                    .read(medicineFilterProvider.notifier)
+                    .update((_) => 'categories');
+                break;
+            }
+          }
+        },
+        backgroundColor: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        selectedColor: colorScheme.primaryContainer,
+        checkmarkColor: colorScheme.onPrimaryContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(
+            color: selected ? colorScheme.primary : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        elevation: selected ? 2 : 0,
+        shadowColor: selected ? colorScheme.shadow : Colors.transparent,
+      ),
+    );
   }
 }
 

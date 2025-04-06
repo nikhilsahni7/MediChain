@@ -4,8 +4,8 @@ import 'package:medileger/config/router/app_router.dart';
 import 'package:medileger/config/theme/app_theme.dart';
 import 'package:medileger/core/providers/shared_preferences_provider.dart';
 
-class MediChainApp extends ConsumerWidget {
-  const MediChainApp({super.key});
+class medilegerApp extends ConsumerWidget {
+  const medilegerApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,7 +29,7 @@ class MediChainApp extends ConsumerWidget {
                 platformBrightness == Brightness.dark);
 
         return MaterialApp.router(
-          title: 'MediChain',
+          title: 'medileger',
           debugShowCheckedModeBanner: false,
           // Get theme data based on isDarkMode
           theme: appTheme.getThemeData(isDarkMode: false),

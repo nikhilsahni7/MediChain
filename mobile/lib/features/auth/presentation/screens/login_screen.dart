@@ -57,8 +57,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _connector = WalletConnect(
         bridge: 'https://bridge.walletconnect.org',
         clientMeta: const PeerMeta(
-          name: 'MediChain',
-          description: 'Connect your MetaMask wallet to MediChain',
+          name: 'medileger',
+          description: 'Connect your MetaMask wallet to medileger',
           url: 'https://medichain.app',
           icons: ['https://walletconnect.org/walletconnect-logo.png'],
         ),
@@ -763,8 +763,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         connector = WalletConnect(
           bridge: 'https://bridge.walletconnect.org',
           clientMeta: const PeerMeta(
-            name: 'MediChain',
-            description: 'Connect your MetaMask wallet to MediChain',
+            name: 'medileger',
+            description: 'Connect your MetaMask wallet to medileger',
             url: 'https://medichain.app',
             icons: ['https://walletconnect.org/walletconnect-logo.png'],
           ),
@@ -846,7 +846,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            'MediChain',
+                            'medileger',
                             style: textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: colorScheme.primary,
@@ -1091,7 +1091,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          "New to MediChain?",
+                          "New to medileger?",
                           style: textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onSurface.withOpacity(0.7),
                           ),
