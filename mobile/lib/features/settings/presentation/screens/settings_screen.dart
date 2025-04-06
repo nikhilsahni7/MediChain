@@ -76,22 +76,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // Continue with logout even if wallet disconnect fails
       }
 
-      // Clear all SharedPreferences
+      // First call auth service logout for specific auth cleanup
+      await _authService.logout();
+
+      // Then clear all SharedPreferences for complete reset
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
-      // Call auth service logout for any additional cleanup
-      await _authService.logout();
+      debugPrint('Logout: SharedPreferences cleared successfully');
 
       // Invalidate providers to refresh app state
       if (mounted) {
-        ref.invalidate(sharedPreferencesInstanceProvider);
-        // Make sure authStateProvider is invalidated to detect logged out state
-        ref.invalidate(Provider((ref) => _authService));
-      }
+        // Invalidate the auth state provider to trigger router redirects
+        ref.invalidate(authStateProvider);
 
-      // Navigate to login screen and clear navigation stack
-      if (mounted) {
+        // Invalidate shared preferences provider
+        ref.invalidate(sharedPreferencesInstanceProvider);
+
+        debugPrint('Logout: Providers invalidated successfully');
+
+        // Set the loading state to false before navigation
+        setState(() {
+          _isLoading = false;
+          _userData = null;
+        });
+
+        // Navigate to login screen and clear navigation stack
+        debugPrint('Logout: Navigating to login screen');
         context.go(AppRoutes.login);
       }
     } catch (e) {
