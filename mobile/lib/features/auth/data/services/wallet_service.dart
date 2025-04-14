@@ -15,8 +15,5 @@ abstract class WalletService {
   }
 }
 
-enum ConnectionStatus {
-  disconnected,
-  connecting,
-  connected,
-}
+///
+enum ConnectionStatus { disconnected, connecting, connected }

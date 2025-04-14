@@ -109,74 +109,130 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   AppBar _buildAppBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return AppBar(
+      elevation: 0,
+      scrolledUnderElevation: 2,
+      backgroundColor: colorScheme.surface,
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _getIconForIndex(_selectedIndex),
-            size: 24,
-            color: Theme.of(context).colorScheme.primary,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              _getIconForIndex(_selectedIndex),
+              size: 24,
+              color: colorScheme.primary,
+            ),
           ),
-          const SizedBox(width: 8),
-          Text(_appBarTitles[_selectedIndex]),
+          const SizedBox(width: 12),
+          Text(
+            _appBarTitles[_selectedIndex],
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
         ],
       ),
       actions: [
         if (_selectedIndex == 0)
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh inventory',
-            onPressed: () {
-              // Invalidate medicine provider to refresh data
-              ref.invalidate(medicinesProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refreshing inventory...'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh inventory',
+              onPressed: () {
+                // Invalidate medicine provider to refresh data
+                ref.invalidate(medicinesProvider);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text('Refreshing inventory...'),
+                      ],
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
           ),
         Consumer(
           builder: (context, ref, child) {
             final unreadCount = ref.watch(unreadNotificationsCountProvider);
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined),
-                  tooltip: 'Notifications',
-                  onPressed: () {
-                    // Navigate to notifications screen
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        unreadCount > 9 ? '9+' : '$unreadCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+            return Container(
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    tooltip: 'Notifications',
+                    onPressed: () {
+                      // Navigate to notifications screen
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.error,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.error.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             );
           },
         ),
@@ -198,29 +254,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             offset: const Offset(0, -2),
           )
         ],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: isTablet ? 40 : 8,
-            vertical: 8,
+            vertical: 12,
           ),
           child: GNav(
             gap: 8,
             activeColor: colorScheme.onPrimaryContainer,
             tabBackgroundColor: colorScheme.primaryContainer,
             padding: EdgeInsets.symmetric(
-              horizontal: isTablet ? 20 : 8,
-              vertical: 10,
+              horizontal: isTablet ? 20 : 12,
+              vertical: 12,
             ),
-            iconSize: isTablet ? 24 : 20,
+            iconSize: isTablet ? 24 : 22,
             textStyle: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: isTablet ? 14 : 12,
               color: colorScheme.onPrimaryContainer,
             ),
             color: colorScheme.onSurfaceVariant,
+            rippleColor: colorScheme.primaryContainer.withOpacity(0.3),
+            hoverColor: colorScheme.primaryContainer.withOpacity(0.2),
+            curve: Curves.easeOutCubic,
+            duration: const Duration(milliseconds: 300),
             tabs: const [
               GButton(
                 icon: Icons.inventory_2_outlined,
@@ -252,27 +312,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget? _buildFloatingActionButtons() {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     if (_selectedIndex == 0) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_showScrollToTop)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 12),
               child: FloatingActionButton.small(
                 heroTag: 'scroll_to_top',
                 onPressed: () {
                   _scrollController.animateTo(
                     0,
                     duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeOut,
+                    curve: Curves.easeOutCubic,
                   );
                 },
                 tooltip: 'Scroll to top',
-                child: const Icon(Icons.arrow_upward),
+                elevation: 4,
+                backgroundColor: colorScheme.surfaceContainerHigh,
+                foregroundColor: colorScheme.primary,
+                child: const Icon(Icons.arrow_upward_rounded),
               ),
             ),
-          FloatingActionButton(
+          FloatingActionButton.extended(
             heroTag: 'home_fab',
             onPressed: () {
               // Open Medicine Scan Screen
@@ -288,17 +353,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // Invalidate medicine provider to refresh data
                   ref.invalidate(medicinesProvider);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Medicines added to inventory!'),
-                      duration: Duration(seconds: 2),
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline_rounded,
+                            color: Colors.greenAccent[100],
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('Medicines added to inventory!'),
+                        ],
+                      ),
+                      duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   );
                 }
               });
             },
             tooltip: 'Scan Medicine',
-            child: const Icon(Icons.document_scanner_outlined),
+            elevation: 4,
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            icon: const Icon(Icons.document_scanner_rounded),
+            label: const Text(
+              'Scan Medicine',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            extendedPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           ),
         ],
       );
@@ -309,22 +394,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   IconData _getIconForIndex(int index) {
     switch (index) {
       case 0:
-        return Icons.inventory_2_outlined;
+        return Icons.inventory_2_rounded;
       case 1:
-        return Icons.shopping_cart_outlined;
+        return Icons.shopping_cart_rounded;
       case 2:
-        return Icons.map_outlined;
+        return Icons.map_rounded;
       case 3:
-        return Icons.analytics_outlined;
+        return Icons.analytics_rounded;
       case 4:
-        return Icons.settings_outlined;
+        return Icons.settings_rounded;
       default:
-        return Icons.home_outlined;
+        return Icons.home_rounded;
     }
   }
 
   Widget _buildEnhancedInventoryScreen() {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return CustomScrollView(
       controller: _scrollController,
@@ -345,21 +431,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Search bar with improved visual design
         SliverToBoxAdapter(
           child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
                   colorScheme.primary,
-                  colorScheme.primaryContainer,
+                  colorScheme.primary.withBlue(colorScheme.primary.blue + 15),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
                   color: colorScheme.shadow.withOpacity(0.15),
-                  blurRadius: 10,
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
@@ -368,19 +454,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 Expanded(
                   child: TextField(
-                    style: const TextStyle(
+                    style: textTheme.bodyLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Search medicines...',
                       prefixIcon: Icon(
-                        Icons.search,
+                        Icons.search_rounded,
                         color: Colors.white.withOpacity(0.9),
+                        size: 24,
                       ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                          horizontal: 16, vertical: 16),
                       hintStyle: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontWeight: FontWeight.w400,
@@ -398,17 +485,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(16),
-                      bottomRight: Radius.circular(16),
+                      topRight: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
                     ),
                   ),
-                  child: IconButton(
-                    icon: const Icon(Icons.filter_list),
-                    onPressed: () {
-                      // Show filter dialog
-                    },
-                    tooltip: 'Advanced Filters',
-                    color: Colors.white,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        // Show filter dialog
+                      },
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(20),
+                        bottomRight: Radius.circular(20),
+                      ),
+                      splashColor: Colors.white.withOpacity(0.1),
+                      highlightColor: Colors.white.withOpacity(0.2),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.filter_list_rounded,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Filter',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -419,7 +531,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Filter chips with improved visual design
         SliverToBoxAdapter(
           child: SizedBox(
-            height: 50,
+            height: 56,
             child: Consumer(
               builder: (context, ref, child) {
                 final selectedFilter = ref.watch(medicineFilterProvider);
@@ -434,15 +546,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         selectedFilter == 'low_stock'),
                     _buildFilterChip(
                         'Expiring Soon',
-                        Icons.warning_amber_outlined,
+                        Icons.warning_amber_rounded,
                         selectedFilter == 'expiring'),
-                    _buildFilterChip('Priority', Icons.priority_high,
+                    _buildFilterChip('Priority', Icons.priority_high_rounded,
                         selectedFilter == 'priority'),
                     _buildFilterChip(
                         'Recently Added',
-                        Icons.new_releases_outlined,
+                        Icons.new_releases_rounded,
                         selectedFilter == 'recent'),
-                    _buildFilterChip('Categories', Icons.category_outlined,
+                    _buildFilterChip('Categories', Icons.category_rounded,
                         selectedFilter == 'categories'),
                   ],
                 );
@@ -469,23 +581,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 12, top: 4, bottom: 4),
       child: FilterChip(
         label: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 16,
+              size: 18,
               color: selected
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 13,
                 color: selected
                     ? colorScheme.onPrimaryContainer
                     : colorScheme.onSurfaceVariant,
@@ -532,7 +645,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: colorScheme.surfaceContainerHighest.withOpacity(0.4),
         selectedColor: colorScheme.primaryContainer,
         checkmarkColor: colorScheme.onPrimaryContainer,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(
@@ -541,7 +654,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         elevation: selected ? 2 : 0,
+        pressElevation: 4,
         shadowColor: selected ? colorScheme.shadow : Colors.transparent,
+        showCheckmark: false,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
@@ -585,22 +701,36 @@ class _PlaceholderScreenWidget extends StatelessWidget {
 
                 // Feature icon in a modern container
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colorScheme.primaryContainer.withOpacity(0.7),
+                        colorScheme.primaryContainer.withOpacity(0.3),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: colorScheme.primary.withOpacity(0.2),
-                      width: 1,
+                      width: 1.5,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withOpacity(0.1),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     icon,
-                    size: isTablet ? 60 : 48,
+                    size: isTablet ? 64 : 52,
                     color: colorScheme.primary,
                   ),
                 ),
-                SizedBox(height: isTablet ? 24 : 20),
+                SizedBox(height: isTablet ? 28 : 24),
 
                 // Title
                 Text(
@@ -612,9 +742,10 @@ class _PlaceholderScreenWidget extends StatelessWidget {
                       ?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: colorScheme.onSurface,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
                 // Description
                 Text(
@@ -627,26 +758,40 @@ class _PlaceholderScreenWidget extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 36),
 
                 // Add custom feature preview cards based on tab
                 _buildFeaturePreviewCards(context, title),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 36),
 
                 // Action button
                 ElevatedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('$title feature coming soon!')),
+                      SnackBar(
+                        content: Text('$title feature coming soon!'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     );
                   },
-                  icon: const Icon(Icons.notifications_outlined),
+                  icon: const Icon(Icons.notifications_active_outlined),
                   label: const Text('Notify Me When Available'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 2,
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
                 ),
@@ -672,10 +817,10 @@ class _PlaceholderScreenWidget extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             colorScheme.primary,
-            colorScheme.primaryContainer,
+            colorScheme.primary.withBlue(colorScheme.primary.blue + 20),
           ],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
             color: colorScheme.shadow.withOpacity(0.3),
@@ -694,14 +839,14 @@ class _PlaceholderScreenWidget extends StatelessWidget {
               children: [
                 Text(
                   'Inventory Value',
-                  style: textTheme.bodyLarge?.copyWith(
+                  style: textTheme.titleMedium?.copyWith(
                     color: Colors.white.withOpacity(0.9),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(30),
@@ -712,17 +857,25 @@ class _PlaceholderScreenWidget extends StatelessWidget {
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: Colors.greenAccent,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.greenAccent.withOpacity(0.5),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Text(
                         'LIVE',
                         style: textTheme.labelSmall?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ],
@@ -730,7 +883,7 @@ class _PlaceholderScreenWidget extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -752,11 +905,12 @@ class _PlaceholderScreenWidget extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     height: 1,
+                    letterSpacing: -1,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -766,6 +920,7 @@ class _PlaceholderScreenWidget extends StatelessWidget {
                     color: Colors.white.withOpacity(0.9),
                   ),
                 ),
+                Container(
                 Row(
                   children: [
                     const Icon(
